@@ -1,0 +1,59 @@
+### rsyncsnap.exclude
+## EXCLUDE COMMON PATTERNS NORMALLY NOT NEEDED TO BE BACKED UP (Mostly from /home/) ##
+*/cache
+*/.cache
+*/lock
+*/.lock
+*/.thumbnails
+*/.git
+*/.gvfs
+*/.snapshot*
+*/Trash
+*/tmp
+*/temp
+## EXCLUDE / (ROOT) DIRECTORIES NORMALLY NOT NEEDED IN CASE / IS SET TO BE BACKED UP FROM rsyncsnap.include ##
+/bin/
+/boot/
+/cdrom/
+/dev/
+/lib/
+/lib64/
+/lost+found/
+/mnt/
+/media/
+/proc/
+/sbin/
+/swapfile/
+/sys/
+/tmp/
+## /VAR EXCLUDES ##
+/var/backups/
+/var/cache/
+/var/lock/
+/var/log/
+/var/run/
+/var/tmp/
+/var/lib/apt/
+/var/lib/aptitude/
+/var/lib/dpkg/
+/var/lib/samba/
+/var/lib/smartmontools/
+/var/lib/systemd/
+/var/log/installer/
+/var/.snapraid.content*/
+/var/lib/libvirt/
+/var/lib/lxc/
+/var/lib/docker/
+/var/lib/mariadb/
+/var/lib/mysql/
+## CUSTOM EXCLUDES ##
+/usr/local/lib/
+*/.snapraid.content*
+*/Downloads
+*/ISO*
+*/iso*
+*/backup*
+*/Backup*
+*/Sync
+*/Syncthing
+*/syncthing

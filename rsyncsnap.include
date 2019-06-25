@@ -1,0 +1,5 @@
+### rsyncsnap.include ( Use Trailing Slashes /folder/ )
+/etc/
+/root/
+/home/
+/usr/local/

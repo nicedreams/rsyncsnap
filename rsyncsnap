@@ -1,0 +1,362 @@
+#!/bin/bash
+### rsyncsnap -- Rsync Incremental Backups Using Bash
+### Ken Bernier 2019
+###
+### https://gitlab.com/nicedreams/rsyncsnap
+#
+# This script is free software. You can redistribute it and/or modify it under the terms of the GNU
+# General Public License Version 3 (or at your option any later version) as published by The Free
+# Software Foundation.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See the GNU General Public License for more details.
+# If you did not received a copy of the GNU General Public License along with this script see
+# http://www.gnu.org/copyleft/gpl.html or write to The Free Software Foundation, 675 Mass Ave,
+# Cambridge, MA 02139, USA.
+#
+###
+
+###############################################
+### VARIABLES
+##########################################
+datetime="$(date +GMT-%Y.%m.%d-%H.%M.%S)"
+### Extra rsync options [--dry-run] (*Do Not Use --delete / Will cause consistency issues with incremental snapshots*)
+rsync_opts="--progress"
+log="/tmp/rsyncsnap_log.tmp"
+##########################################
+# Location of rsyncsnap.include and rsyncsnap.exclude files (remove trailing slash variable)
+backup_include="${1%/}"
+### Destination directory to store backups (remove trailing slash from variable)
+backup_dest="${2%/}"
+### Name the destination backup archive based on rsyncsnap.include filename
+pre_backup_base="${backup_include##*/}"
+backup_base="${pre_backup_base%.*}"
+#pre_backup_base="$(echo ${backup_include##*/})"
+#backup_base="$(echo ${pre_backup_base%.*})"
+### How many snapshots to keep
+keep_snapshots="$3"
+#keep="$(( $keep_snapshots + 1 ))"
+keep="$((keep_snapshots+1))"
+##########################################
+last_backup="$backup_base-current"
+
+###############################################
+### FUNCTIONS
+###############################################
+
+function usage() {
+echo "
+===================================================================================
+rsyncsnap
+
+Uses rsync to create incremental snapshots with hard links.
+https://github.com/nicedreams/rsyncsnap
+
+USAGE:
+  rsyncsnap <include_file> <destination> <snapshots> <options>
+  rsyncsnap /root/rsyncsnap.include /mnt/backups/rsyncsnap 30 \\
+            --exclude /root/rsyncsnap.exclude \\
+            --logfile /var/log/rsyncsnap.log \\
+            --email user@domain \\
+			--chmod 750 \\
+			--syslog
+
+  <include_file>  Full path and filename of rsyncsnap.include file
+  <destination>   Where to store backups: /mnt/backups/rsyncsnap
+  <snapshots>     Amount of snapshots to keep: 30
+
+  Caution:        If snapshot amount is set to 1 then all snapshots will be removed.
+
+OPTIONS:
+  -e | --exclude  Path and filename of exclude file: /home/user/rsyncsnap.exclude
+
+  -l | --logfile  Path and filename of logfile: /var/log/rsyncsnap.log
+
+  --syslog        Send message to syslog (logger)
+
+  --email         Send email (mail command)
+                  --email user@domain.com  OR  --email root
+
+  --chmod         Change directory permissions    (default  755)
+                  --chmod 750
+
+Single Run Options:
+  -du | --size    Display accurate size of entire backup destination (du)
+                  --size /mnt/backups/rsyncsnap/
+
+  --hardlinks     Check inode hardlink info on a file in backup destination
+                  --hardlinks <backup_destination> <filename_to_check>
+                  --hardlinks /mnt/backups/rsyncsnap filename.ext
+
+  --help          Print this usage information
+===================================================================================
+"
+}
+
+function perform_rsync() {
+  ### Perform rsync
+  if [[ ! -h "$backup_dest"/"$backup_base"-current ]]; then
+    printf "\n%s [rsyncsnap] Creating first initial backup in $backup_dest\n"
+    if ! rsync -arvh "$rsync_opts" --log-file="$log" --files-from="$backup_include" --exclude-from="$backup_exclude" --exclude="$backup_dest" "/" "$backup_dest"/"$backup_base"@"$datetime"/
+    then
+      ### Give error if issues with rsync and exit
+      log_subject=" [rsyncsnap] Error while performing rsync for $backup_base at $backup_dest!"
+      printf "\n%s $log_subject \n"
+      rsync_errors
+      exit
+    fi
+    log_subject=" [rsyncsnap] Initial version backup was success for $backup_base at $backup_dest"
+    printf "\n%s $log_subject \n"
+    rsync_first_backup="Y"
+  else
+    printf "\n%s [rsyncsnap] Creating version snapshot backup in $backup_dest\n"
+    if ! rsync -arvh "$rsync_opts" --log-file="$log" --files-from="$backup_include" --exclude-from="$backup_exclude" --exclude="$backup_dest" --link-dest="$backup_dest/$last_backup"/ "/" "$backup_dest"/"$backup_base"@"$datetime"/ 
+    then
+      ### Give error if issues with rsync and exit
+      log_subject=" [rsyncsnap] Error while performing rsync for $backup_base at $backup_dest!"
+      printf "\n%s $log_subject \n"
+      rsync_errors
+      exit
+    fi
+    log_subject=" [rsyncsnap] Version backup was success for $backup_base at $backup_dest"
+    printf "\n%s$log_subject \n"
+    rsync_first_backup="N"
+  fi
+
+  ### Create soft link of current date-time to this backup just created
+  rm -f "$backup_dest"/"$last_backup"
+  ln -s "$backup_dest"/"$backup_base"@"$datetime" "$backup_dest"/"$last_backup"
+} >> "$log" 2>&1
+
+function rsync_errors() {
+printf "\n%s $log_subject \n"
+if [[ "$set_send_logfile" == "Y" ]]; then
+  echo ""
+  echo "$log_subject"
+fi
+if [[ "$set_send_syslog" == "Y" ]]; then
+  send_syslog
+fi
+if [[ "$set_send_email" == "Y" ]]; then
+  mail -s "$HOSTNAME $log_subject" "$email_address" < "$log"
+fi
+if [[ "$set_send_script" == "Y" ]]; then
+echo
+fi
+} >> "$log" 2>&1
+
+function list_snapshots() {
+  printf "\n%s [rsyncsnap] Listing backups: $backup_dest\n"
+  ls -d1 "$backup_dest"/"$backup_base"@GMT*
+  printf "\n ---- ---- ---- ---- ---- ---- ---- \n"
+  } >> "$log" 2>&1
+
+function remove_old_snapshots() {
+  if [[ ! -d "$backup_dest/$backup_base@GMT*" ]]; then
+    ### Create variable of snapshot count in destination
+    active_snapshots="$(find "$backup_dest"/"$backup_base"@GMT* -maxdepth 0 -type d |wc -l)"
+
+    ### List snapshot keep count if hit limit
+    if [[ "$active_snapshots" -ge "$keep_snapshots" ]]; then
+      printf "\n%s Removing old snapshots (Limit: $keep_snapshots)\n"
+    fi
+
+    ### Remove backup directories over keep limit ### Give error if issues removing snapshot directory
+    if ! find "$backup_dest"/"$backup_base"@GMT* -maxdepth 0 -type d |sort -r |tail -n +"$keep" | while read -r fname; do rm -rf "$fname"; done
+    #if ! ls -dQ -1 "$backup_dest"/"$backup_base"@GMT**/ |sort -r |tail -n +"$keep" | while read fname; do rm -rf "$fname"; done
+    then
+      printf "\n%s [rsyncsnap] ERROR Removing Older Snapshots From $backup_dest\n"
+    fi
+  else
+    printf "\n%s [rsyncsnap] ERROR Destination directory not found at $backup_dest\n"
+    printf "\n [rsyncsnap] ERROR Unable to remove old snapshots!\n"
+  fi
+} >> "$log" 2>&1
+
+function test_vars() {
+  ### TEST VARIABLES  #########################################################
+  printf "\n%s backup_include: \t $backup_include"
+  printf "\n%s backup_exclude: \t $backup_exclude"
+  printf "\n%s backup_dest: \t\t $backup_dest"
+  printf "\n%s keep: \t\t\t $keep"
+  printf "\n%s keep_snapshots: \t $keep_snapshots"
+  printf "\n%s logfile_location: \t $logfile_location"
+  printf "\n%s last_backup: \t\t $last_backup"
+  printf "\n%s pre_backup_base: \t $pre_backup_base"
+  printf "\n%s backup_base: \t\t $backup_base"
+  printf "\n%s active_snapshots: \t $active_snapshots"
+  printf "\n%s email_address: \t $email_address"
+  printf "\n%s log_subject: \t\t $log_subject"
+  printf "\n%s log: \t\t\t $log \n\n"
+  ### TEST VARIABLES  #########################################################
+exit
+}
+
+function format_log() {
+  echo ""
+  echo ""
+  echo "--------------------------------------------------------"
+  echo "RSYNCSNAP LOG -- $datetime"
+  echo "--------------------------------------------------------"
+} >> "$log" 2>&1
+
+function backup_size() {
+  if [[ -z "$set_backup_size" ]]
+  then
+    printf "\n[rsyncsnap] Usage: rsyncsnap --size <backup_destination>\n[rsyncsnap]        rsyncsnap /ext/backup\n\n"
+  else
+    printf "\n%s[rsyncsnap] Showing accurate full size of \"$set_backup_size\""
+    printf "\n%s  $(du -sh "$set_backup_size")\n\n"
+  fi
+  exit
+}
+
+function list_hardlinks() {
+  if [[ -z "$set_hardlink_dest" ]] || [[ -z "$hardlink_filename" ]]
+  then
+    printf "\n[rsyncsnap] Usage: rsyncsnap --hardlinks <backup_destination> <filename>\n[rsyncsnap]        rsyncsnap /ext/backup myfile.txt\n\n"
+  else
+    printf "\n[rsyncsnap] If no file results shown, then file is not found"
+    printf "\n%s[rsyncsnap] Showing inode (hardlinks) for \"$hardlink_filename\" in \"$set_hardlink_dest\""
+    printf "\n%s$(find "$set_hardlink_dest" -name "$hardlink_filename" -ls)\n\n"
+  fi
+  exit
+}
+
+###############################################
+### RUN SCRIPT
+###############################################
+
+### TRAP Clean Up
+trap 'rm -f $log' EXIT
+
+### Start log formatting
+format_log
+
+### Multiple Argument Selection
+POSITIONAL=()
+while [[ "$#" -gt 0 ]]
+do
+key="$1"
+
+case "$key" in
+  -e|--exclude)
+    backup_exclude="${2%/}" # Remove trailing slashes
+    shift
+    if [[ ! -f "$backup_exclude" ]]; then
+      printf "\n%s[rsyncsnap] ERROR Exclude list file not found!\n [rsyncsnap] Type $0 --help for usage\n\n"
+      exit
+    fi
+  ;;
+  -l|--logfile)
+    logfile_location="${2%/}" # Remove tailing slashes
+    shift
+    if [[ -z "$logfile_location" ]]
+    then
+      printf "\n[rsyncsnap] Usage: rsyncsnap --logfile <logfile_location>\n[rsyncsnap]        rsyncsnap --logfile /var/log/rsnapsync.log\n\n"
+      exit
+    fi
+    set_send_logfile="Y"
+  ;;
+  --syslog)
+    set_send_syslog="Y"
+  ;;
+  --email)
+    email_address="$2"
+    shift
+    if [[ -z "$email_address" ]]; then
+      printf "\n[rsyncsnap] Usage: rsyncsnap --email <email_address>\n[rsyncsnap]        rsyncsnap --email user@domain\n\n"
+      exit
+    fi
+    set_send_email="Y"
+  ;;
+  -du|--size)
+    set_backup_size="$2"
+    shift
+    backup_size
+  ;;
+  --chmod)
+    set_chmod="$2"
+    shift
+    if [[ -z "$set_chmod" ]]; then
+      printf "\n[rsyncsnap] Usage: rsyncsnap --chmod <num>\n[rsyncsnap]        rsyncsnap --chmod 750    (default 755)\n\n"
+      exit
+    fi
+    chmod_change="Y"
+  ;;
+  --hardlink|--hardlinks)
+    set_hardlink_dest="$2"
+    hardlink_filename="$3"
+    shift
+    shift
+    list_hardlinks
+  ;;
+  --debug)
+    test_vars
+  ;;
+  -h|--help)
+    usage
+    exit 0
+  ;;
+  *)
+  ;;
+esac
+shift
+done
+
+
+### ERROR CHECKING INPUT
+if [[ -z "$backup_include" ]]; then printf "\n%s [rsyncsnap] ERROR Include list file not entered!\n\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
+if [[ ! -f "$backup_include" ]]; then printf "\n%s [rsyncsnap] ERROR Include list file not found!\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
+if [[ -z "$backup_dest" ]]; then printf "\n%s [rsyncsnap] ERROR Backup destination not entered!\n\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
+if [[ "$keep_snapshots" =~ ^[0-9]+$ ]]; then echo; else printf "\n%s [rsyncsnap] ERROR Snapshot amount not entered and must be a number\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
+if [[ ! -d "$backup_dest" ]]; then printf "\n%s [rsyncsnap] ERROR $backup_dest NOT FOUND OR NO PERMISSIONS TO DIRECTORY - Exiting!\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
+
+### Run main rsync function
+perform_rsync
+
+## Print log status to terminal
+printf "\n%s $log_subject \n"
+
+## Perform other tasks if not initial backup
+if [[ "$rsync_first_backup" == "N" ]]; then
+  remove_old_snapshots
+  list_snapshots
+fi
+
+## chmod option
+if [[ "$chmod_change" == "Y"  ]]; then
+  printf "\n%s  [rsyncsnap] chmod $backup_dest $set_chmod" >> "$log"
+  chmod "$set_chmod" "$backup_dest"/"$backup_base"@"$datetime"
+fi
+
+
+## Send message to syslog option
+if [[ "$set_send_syslog" == "Y"  ]]; then
+  message="$log_subject"
+  printf "\n%s  [rsyncsnap] Sending message to Syslog" >> "$log"
+  logger -s -t rsyncsnap "$message" > /dev/null 2>&1
+fi
+
+## Send email log option
+if [[ "$set_send_email" == "Y"  ]]; then
+  mail -s "$log_subject" "$email_address" < "$log"
+  printf "\n%s  [rsyncsnap] Sending email log to $email_address" >> "$log"
+fi
+
+### Leave as last line
+## Create log file option
+if [[ "$set_send_logfile" == "Y"  ]]; then
+  printf "\n%s  [rsyncsnap] Creating log in: $logfile_location\n\n" >> "$log"
+  cat "$log" >> "$logfile_location"
+fi
+
+### END
+exit
