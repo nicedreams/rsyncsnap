@@ -2,7 +2,7 @@
 ### rsyncsnap -- Rsync Incremental Backups Using Bash
 ### Ken Bernier 2019
 ###
-### https://gitlab.com/nicedreams/rsyncsnap
+### https://github.com/nicedreams/rsyncsnap
 #
 # This script is free software. You can redistribute it and/or modify it under the terms of the GNU
 # General Public License Version 3 (or at your option any later version) as published by The Free
