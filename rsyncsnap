@@ -61,6 +61,10 @@ rsyncsnap
 Uses rsync to create incremental snapshots with hard links.
 https://github.com/nicedreams/rsyncsnap
 
+Add directories to backup in rsyncsnap.include (mandatory)
+Add directories to exclude in rsyncsnap.exclude (optional)
+Use examples from git repo.
+
 USAGE:
   rsyncsnap <include_file> <destination> <snapshots> <options>
   rsyncsnap /root/rsyncsnap.include /mnt/backups/rsyncsnap 30 \\

@@ -14,7 +14,6 @@ Why create this when rsnapshot exists?  Started as a bash script for version con
     /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-14.59.10
     /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-15.01.25
 ``` 
-Warning: Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup.
 
 ----------------------------------------------------------------------------------
 
@@ -37,7 +36,7 @@ Uses rsync to create incremental snapshots with hard links to a destination dire
 ----------------------------------------------------------------------------------
 
 ## Warnings
-
+- Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup.
 - Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed.
 
 ## Remote (ssh) Notice:
@@ -78,6 +77,10 @@ rsyncsnap
 Uses rsync to create incremental snapshots with hard links.
 https://github.com/nicedreams/rsyncsnap
 
+Add directories to backup in rsyncsnap.include (mandatory)
+Add directories to exclude in rsyncsnap.exclude (optional)
+Use examples from git repo.
+
 USAGE:
   rsyncsnap <include_file> <destination> <snapshots> <options>
   rsyncsnap /root/rsyncsnap.include /mnt/backups/rsyncsnap 30 \
@@ -86,6 +89,10 @@ USAGE:
             --email user@domain \
       --chmod 750 \
       --syslog
+
+  rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups/rsyncsnap \
+            --exclude /root/rsyncsnap.exclude \
+            --logfile /var/log/rsyncsnap.log
 
   <include_file>  Full path and filename of rsyncsnap.include file
   <destination>   Where to store backups: /mnt/backups/rsyncsnap
