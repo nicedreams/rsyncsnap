@@ -99,8 +99,8 @@ OPTIONS:
   --email         Send email (mail command)
                   --email user@domain.com  OR  --email root
 
-  --chmod         Change directory permissions    (default  755)
-                  --chmod 750
+  --chmod         Change snapshot directory permissions (default: 755)
+                  --chmod 750 (Everyone group has no access)
 
 Single Run Options:
   -du | --size    Display accurate size of entire backup destination (du)
@@ -223,6 +223,7 @@ function test_vars() {
   printf "\n%s email_address: \t $email_address"
   printf "\n%s ssh_backup_dest_before: $ssh_backup_dest_before"
   printf "\n%s ssh_backup_dest_after:  $ssh_backup_dest_after"
+  printf "\n%s chmod: \t\t $set_chmod"
   printf "\n%s log_subject: \t\t $log_subject"
   printf "\n%s log: \t\t\t $log \n\n"
   ### TEST VARIABLES  #########################################################
@@ -390,6 +391,11 @@ fi
 
 ### Leave as last line
 create_logfile
+
+## Display $log on terminal (standard output)
+cat "$log"
+echo ""
+echo ""
 
 ### END
 exit 0
