@@ -35,6 +35,8 @@ log="/tmp/rsyncsnap_log.tmp"
 backup_include="${1%/}"
 ### Destination directory to store backups (remove trailing slash from variable)
 backup_dest="${2%/}"
+ssh_backup_dest_before="${backup_dest%:*}"
+ssh_backup_dest_after="${backup_dest#*:}"
 ### Name the destination backup archive based on rsyncsnap.include filename
 pre_backup_base="${backup_include##*/}"
 backup_base="${pre_backup_base%.*}"
@@ -53,7 +55,7 @@ last_backup="$backup_base-current"
 
 function usage() {
 echo "
-===================================================================================
+================================================================================
 rsyncsnap
 
 Uses rsync to create incremental snapshots with hard links.
@@ -65,14 +67,23 @@ USAGE:
             --exclude /root/rsyncsnap.exclude \\
             --logfile /var/log/rsyncsnap.log \\
             --email user@domain \\
-			--chmod 750 \\
-			--syslog
+            --chmod 750 \\
+            --syslog
+
+  rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups/rsyncsnap \\
+            --exclude /root/rsyncsnap.exclude \\
+            --logfile /var/log/rsyncsnap.log
 
   <include_file>  Full path and filename of rsyncsnap.include file
   <destination>   Where to store backups: /mnt/backups/rsyncsnap
   <snapshots>     Amount of snapshots to keep: 30
 
-  Caution:        If snapshot amount is set to 1 then all snapshots will be removed.
+  CAUTION:        If snapshot amount is set to 1, all snapshots will be removed.
+
+  REMOTE NOTICE:  - Syncing to remote server will NOT auto delete snapshots from
+                    remote server.  You must keep track and remove manually.
+                  - Script will preserve hard-links to remote system.
+                  - Recommended to use ssh key authentication for cron jobs.
 
 OPTIONS:
   -e | --exclude  Path and filename of exclude file: /home/user/rsyncsnap.exclude
@@ -95,61 +106,74 @@ Single Run Options:
                   --hardlinks <backup_destination> <filename_to_check>
                   --hardlinks /mnt/backups/rsyncsnap filename.ext
 
+  --debug         Put at very end of command to test options - not run script
+
   --help          Print this usage information
-===================================================================================
+================================================================================
 "
 }
 
 function perform_rsync() {
-  ### Perform rsync
+### Perform rsync
+  # first backup
   if [[ ! -h "$backup_dest"/"$backup_base"-current ]]; then
-    printf "\n%s [rsyncsnap] Creating first initial backup in $backup_dest\n"
-    if ! rsync -arvh "$rsync_opts" --log-file="$log" --files-from="$backup_include" --exclude-from="$backup_exclude" --exclude="$backup_dest" "/" "$backup_dest"/"$backup_base"@"$datetime"/
+    printf "\n%s [rsyncsnap] Creating version snapshot backup in $backup_dest\n"
+    if ! rsync -arvh "$rsync_opts" --log-file="$log" --files-from="$backup_include" --exclude-from="$backup_exclude" --exclude="$backup_dest" --link-dest="$ssh_backup_dest_after/$last_backup"/ "/" "$backup_dest"/"$backup_base"@"$datetime"/
     then
       ### Give error if issues with rsync and exit
       log_subject=" [rsyncsnap] Error while performing rsync for $backup_base at $backup_dest!"
       printf "\n%s $log_subject \n"
       rsync_errors
+      create_logfile
       exit
     fi
-    log_subject=" [rsyncsnap] Initial version backup was success for $backup_base at $backup_dest"
+    log_subject=" [rsyncsnap] Version backup was success for $backup_base at $backup_dest"
     printf "\n%s $log_subject \n"
     rsync_first_backup="Y"
-  else
+else
+    # all other backups
     printf "\n%s [rsyncsnap] Creating version snapshot backup in $backup_dest\n"
-    if ! rsync -arvh "$rsync_opts" --log-file="$log" --files-from="$backup_include" --exclude-from="$backup_exclude" --exclude="$backup_dest" --link-dest="$backup_dest/$last_backup"/ "/" "$backup_dest"/"$backup_base"@"$datetime"/ 
+    if ! rsync -arvh "$rsync_opts" --log-file="$log" --files-from="$backup_include" --exclude-from="$backup_exclude" --exclude="$ssh_backup_dest_after" --link-dest="$ssh_backup_dest_after/$last_backup"/ "/" "$backup_dest"/"$backup_base"@"$datetime"/ 
     then
       ### Give error if issues with rsync and exit
       log_subject=" [rsyncsnap] Error while performing rsync for $backup_base at $backup_dest!"
       printf "\n%s $log_subject \n"
       rsync_errors
+      create_logfile
       exit
     fi
     log_subject=" [rsyncsnap] Version backup was success for $backup_base at $backup_dest"
     printf "\n%s$log_subject \n"
     rsync_first_backup="N"
-  fi
-
+fi
   ### Create soft link of current date-time to this backup just created
-  rm -f "$backup_dest"/"$last_backup"
-  ln -s "$backup_dest"/"$backup_base"@"$datetime" "$backup_dest"/"$last_backup"
+  if [[ -z "$(echo $backup_dest | grep :)" ]]; then
+    printf "\n%s [rsyncsnap] Removing softlink to previous version backup\n"
+    rm -fv "$backup_dest"/"$last_backup"
+    printf "\n%s [rsyncsnap] Creating softlink to latest version backup\n"
+    ln -sv "$backup_dest"/"$backup_base"@"$datetime" "$backup_dest"/"$last_backup"
+  fi
+  if [[ -n "$(echo $backup_dest | grep :)" ]]; then
+    printf "\n%s  [rsyncsnap] SSH'ing into "$backup_dest" to create softlink to latest version backup\n"
+    ssh "$ssh_backup_dest_before" "rm -f "$ssh_backup_dest_after"/"$last_backup" && ln -s "$ssh_backup_dest_after"/"$backup_base"@"$datetime" "$ssh_backup_dest_after"/"$last_backup""
+  fi
 } >> "$log" 2>&1
 
 function rsync_errors() {
-printf "\n%s $log_subject \n"
-if [[ "$set_send_logfile" == "Y" ]]; then
-  echo ""
-  echo "$log_subject"
-fi
-if [[ "$set_send_syslog" == "Y" ]]; then
-  send_syslog
-fi
-if [[ "$set_send_email" == "Y" ]]; then
-  mail -s "$HOSTNAME $log_subject" "$email_address" < "$log"
-fi
-if [[ "$set_send_script" == "Y" ]]; then
-echo
-fi
+  printf "\n%s $log_subject \n"
+  if [[ "$set_send_logfile" == "Y" ]]; then
+    echo ""
+    echo "$log_subject"
+  fi
+  if [[ "$set_send_syslog" == "Y" ]]; then
+    send_syslog
+  fi
+  if [[ "$set_send_email" == "Y" ]]; then
+    mail -s "$HOSTNAME $log_subject" "$email_address" < "$log"
+  fi
+  if [[ "$set_send_script" == "Y" ]]; then
+  echo
+  fi
 } >> "$log" 2>&1
 
 function list_snapshots() {
@@ -193,6 +217,8 @@ function test_vars() {
   printf "\n%s backup_base: \t\t $backup_base"
   printf "\n%s active_snapshots: \t $active_snapshots"
   printf "\n%s email_address: \t $email_address"
+  printf "\n%s ssh_backup_dest_before: $ssh_backup_dest_before"
+  printf "\n%s ssh_backup_dest_after:  $ssh_backup_dest_after"
   printf "\n%s log_subject: \t\t $log_subject"
   printf "\n%s log: \t\t\t $log \n\n"
   ### TEST VARIABLES  #########################################################
@@ -230,18 +256,25 @@ function list_hardlinks() {
   exit
 }
 
+function create_logfile() {
+## Create log file option
+if [[ "$set_send_logfile" == "Y"  ]]; then
+  printf "\n%s  [rsyncsnap] Creating log in: $logfile_location\n\n" >> "$log"
+  cat "$log" >> "$logfile_location"
+fi
+}
+
 ###############################################
 ### RUN SCRIPT
 ###############################################
 
-### TRAP Clean Up
+### TRAP Exit for clean up
 trap 'rm -f $log' EXIT
 
 ### Start log formatting
 format_log
 
 ### Multiple Argument Selection
-POSITIONAL=()
 while [[ "$#" -gt 0 ]]
 do
 key="$1"
@@ -255,7 +288,7 @@ case "$key" in
       exit
     fi
   ;;
-  -l|--logfile)
+  -l|--logfile|--log)
     logfile_location="${2%/}" # Remove tailing slashes
     shift
     if [[ -z "$logfile_location" ]]
@@ -311,13 +344,12 @@ esac
 shift
 done
 
-
 ### ERROR CHECKING INPUT
 if [[ -z "$backup_include" ]]; then printf "\n%s [rsyncsnap] ERROR Include list file not entered!\n\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
 if [[ ! -f "$backup_include" ]]; then printf "\n%s [rsyncsnap] ERROR Include list file not found!\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
 if [[ -z "$backup_dest" ]]; then printf "\n%s [rsyncsnap] ERROR Backup destination not entered!\n\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
 if [[ "$keep_snapshots" =~ ^[0-9]+$ ]]; then echo; else printf "\n%s [rsyncsnap] ERROR Snapshot amount not entered and must be a number\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
-if [[ ! -d "$backup_dest" ]]; then printf "\n%s [rsyncsnap] ERROR $backup_dest NOT FOUND OR NO PERMISSIONS TO DIRECTORY - Exiting!\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
+#if [[ ! -d "$backup_dest" ]]; then printf "\n%s [rsyncsnap] ERROR $backup_dest NOT FOUND OR NO PERMISSIONS TO DIRECTORY - Exiting!\n [rsyncsnap] Type $0 --help  for usage\n\n"; exit; fi
 
 ### Run main rsync function
 perform_rsync
@@ -325,10 +357,12 @@ perform_rsync
 ## Print log status to terminal
 printf "\n%s $log_subject \n"
 
-## Perform other tasks if not initial backup
-if [[ "$rsync_first_backup" == "N" ]]; then
-  remove_old_snapshots
-  list_snapshots
+## Perform other tasks if not remote (ssh)
+if [[ -z "$(echo $backup_dest | grep :)" ]]; then
+#  if [[ "$rsync_first_backup" == "N" ]]; then
+    remove_old_snapshots
+    list_snapshots
+#  fi
 fi
 
 ## chmod option
@@ -336,7 +370,6 @@ if [[ "$chmod_change" == "Y"  ]]; then
   printf "\n%s  [rsyncsnap] chmod $backup_dest $set_chmod" >> "$log"
   chmod "$set_chmod" "$backup_dest"/"$backup_base"@"$datetime"
 fi
-
 
 ## Send message to syslog option
 if [[ "$set_send_syslog" == "Y"  ]]; then
@@ -352,11 +385,7 @@ if [[ "$set_send_email" == "Y"  ]]; then
 fi
 
 ### Leave as last line
-## Create log file option
-if [[ "$set_send_logfile" == "Y"  ]]; then
-  printf "\n%s  [rsyncsnap] Creating log in: $logfile_location\n\n" >> "$log"
-  cat "$log" >> "$logfile_location"
-fi
+create_logfile
 
 ### END
-exit
+exit 0

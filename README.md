@@ -5,7 +5,6 @@ Bash script that uses rsync to create multiple incremental backup snapshots of o
 Why create this when rsnapshot exists?  Started as a bash script for version control of a linux samba server in a Windows client environment.  Needed a way to work with "Windows Previous Versions" from Windows desktops and samba vss with it's date formatting of folders.  Also liked the fact that all snapshots are date/time stamped for easier restore where rsnapshot uses alpha.0 alpha.1 alpha.2 and so on.  And it's bash so easy for me to modify.  As the script grew it turned into a bash alternative to rsnapshot pretty much.  Since rsyncsnap has been working fine for my production setups I decided to share as an alternative.
 
 #### Example directory listing of backups: <GMT-%Y.%m.%d-%H.%M.%S>
-
 ```
     ls
     /mnt/backups/rsyncsnap/rsyncsnap-current
@@ -14,8 +13,7 @@ Why create this when rsnapshot exists?  Started as a bash script for version con
     /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-14.59.07
     /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-14.59.10
     /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-15.01.25
-```	
-
+``` 
 Warning: Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup.
 
 ----------------------------------------------------------------------------------
@@ -24,6 +22,7 @@ Warning: Do not delete the soft link to rsyncsnap-current directory!  The soft l
 
 Uses rsync to create incremental snapshots with hard links to a destination directory.
 
+- Can create and store backup snapshots on local machine or remote server using ssh.
 - Snapshots are Samba `vfs_shadow_copy2` compatible with Windows Previous Versions.
 - A soft link will be updated to most current backup within backup directory.
 - The use of .includes file is for adding single or multiple sources to backup.  You can use any name for the file and extension.  Just something easy to keep track of.
@@ -37,18 +36,23 @@ Uses rsync to create incremental snapshots with hard links to a destination dire
 
 ----------------------------------------------------------------------------------
 
+## Warnings
+
+- Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed.
+
+## Remote (ssh) Notice:
+- Syncing to remote server will NOT auto delete snapshots from remote server even though entered.  You must keep track and remove manually.  Or create maintenance script on remote server to manage.
+- Will preserve hard-links to remote server.
+- Recommended to use ssh key authentication for automation like cron jobs.  Configure ~/.ssh/config for easier access.
+
 ## Installation
 
 Copy rsyncsnap file to /usr/local/bin or any other directory and give execute permissions.
-
 ```
 cp rsyncsnap /usr/local/bin/rsyncsnap
 chmod +x /usr/local/bin/rsyncsnap
-
 ```
-
 Create rsyncsnap.include and rsyncsnap.exclude files.  Use the example files in this README or the to help you with your own includes and excludes.  Follows normal rsync patterns.  rsyncsnap.excludes creation is optional if not needed.
-
 ```
 vi /root/rsyncsnap.include
 vi /root/rsyncsnap.exclude
@@ -56,11 +60,12 @@ vi /root/rsyncsnap.exclude
 
 #### Set cron job to run once or multiple times a day for daily snapshots
 
-crontab -e (Run once a day at 3:00AM)
+crontab -e (Run backup to local once a day at 3:00AM) (Run backup to remote once a day at 4:00AM)
 
 ```
 #00 03 * * * /usr/local/bin/rsyncsnap <include_file> <destination> <snapshots> <options>
  00 03 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email root
+ 00 04 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include user@domain:/home/backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email root
 ```
 
 ----------------------------------------------------------------------------------
@@ -79,14 +84,19 @@ USAGE:
             --exclude /root/rsyncsnap.exclude \
             --logfile /var/log/rsyncsnap.log \
             --email user@domain \
-			--chmod 750 \
-			--syslog
+      --chmod 750 \
+      --syslog
 
   <include_file>  Full path and filename of rsyncsnap.include file
   <destination>   Where to store backups: /mnt/backups/rsyncsnap
   <snapshots>     Amount of snapshots to keep: 30
 
-  Caution:        If snapshot amount is set to 1 then all snapshots will be removed.
+  CAUTION:        If snapshot amount is set to 1, all snapshots will be removed.
+
+  REMOTE NOTICE:  - Syncing to remote server will NOT auto delete snapshots from
+                    remote server.  You must keep track and remove manually.
+                  - Script will preserve hard-links to remote system.
+                  - Recommended to use ssh key authentication for cron jobs.
 
 OPTIONS:
   -e | --exclude  Path and filename of exclude file: /home/user/rsyncsnap.exclude
@@ -117,7 +127,6 @@ Single Run Options:
 ## Examples
 
 #### /rsyncsnap.include (Use trailing slashes on directories)
-
 ```
 /etc/
 /root/
@@ -127,7 +136,6 @@ Single Run Options:
 ```
 
 #### /rsyncsnap.exclude (Use trailing slashes on directories)
-
 ```
 */.thumbnails
 */.cache
@@ -168,14 +176,12 @@ Your data is important and you can verify if things are working properly.  If yo
 #### Use these options to check size and hardlinks of backup.
 
 Get accurate total size of backup using du command
-
 ```
 #rsyncsnap --size <backup_location>
  rsyncsnap --size /mnt/backup/
 ```
 
 List inodes (hardlinks) of files within backup to compare if working
-
 ```
 #rsyncsnap --hardlink <backup_location> <filename>
  rsyncsnap --hardlink /mnt/backup/ .bashrc
