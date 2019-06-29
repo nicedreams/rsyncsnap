@@ -6,13 +6,13 @@ Why create this when rsnapshot exists?  Started as a bash script for version con
 
 #### Example directory listing of backups: <GMT-%Y.%m.%d-%H.%M.%S>
 ```
-    ls
-    /mnt/backups/rsyncsnap/rsyncsnap-current
-    /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.15-14.58.11
-    /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.16-14.58.40
-    /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-14.59.07
-    /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-14.59.10
-    /mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-15.01.25
+ls
+/mnt/backups/rsyncsnap/rsyncsnap-current
+/mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.15-14.58.11
+/mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.16-14.58.40
+/mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-14.59.07
+/mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-14.59.10
+/mnt/backups/rsyncsnap/rsyncsnap@GMT-2019.07.18-15.01.25
 ``` 
 
 ----------------------------------------------------------------------------------
@@ -50,7 +50,10 @@ Copy rsyncsnap file to /usr/local/bin or any other directory and give execute pe
 ```
 cp rsyncsnap /usr/local/bin/rsyncsnap
 chmod +x /usr/local/bin/rsyncsnap
+
+# Copy rsyncsnap.include and rsyncsnap.exclude files to /root or directory of your choosing or create your own includes file.
 ```
+
 Create rsyncsnap.include and rsyncsnap.exclude files.  Use the example files in this README or the to help you with your own includes and excludes.  Follows normal rsync patterns.  rsyncsnap.excludes creation is optional if not needed.
 ```
 vi /root/rsyncsnap.include
@@ -115,8 +118,8 @@ OPTIONS:
   --email         Send email (mail command)
                   --email user@domain.com  OR  --email root
 
-  --chmod         Change directory permissions    (default  755)
-                  --chmod 750
+  --chmod         Change snapshot directory permissions (default: 755)
+                  --chmod 750 (Everyone group has no access)
 
 Single Run Options:
   -du | --size    Display accurate size of entire backup destination (du)
