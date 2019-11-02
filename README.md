@@ -57,7 +57,7 @@ chmod +x /usr/local/bin/rsyncsnap
 Create rsyncsnap.include and rsyncsnap.exclude files.  Use the example files in this README or the to help you with your own includes and excludes.  Follows normal rsync patterns.  rsyncsnap.excludes creation is optional if not needed.
 ```
 vi /root/rsyncsnap.include
-vi /root/rsyncsnap.exclude
+vi /root/rsyncsnap.exclude (optional)
 ```
 
 #### Set cron job to run once or multiple times a day for daily snapshots
@@ -90,8 +90,7 @@ USAGE:
             --exclude /root/rsyncsnap.exclude \
             --logfile /var/log/rsyncsnap.log \
             --email user@domain \
-      --chmod 750 \
-      --syslog
+            --syslog
 
   rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups/rsyncsnap \
             --exclude /root/rsyncsnap.exclude \
@@ -117,9 +116,6 @@ OPTIONS:
 
   --email         Send email (mail command)
                   --email user@domain.com  OR  --email root
-
-  --chmod         Change snapshot directory permissions (default: 755)
-                  --chmod 750 (Everyone group has no access)
 
 Single Run Options:
   -du | --size    Display accurate size of entire backup destination (du)
