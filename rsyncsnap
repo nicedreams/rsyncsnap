@@ -27,7 +27,7 @@
 ### VARIABLES
 ##########################################
 ### Add extra rsync options [example: --dry-run] (Do Not Use --delete / Will cause consistency issues with incremental snapshots)
-rsync_options=(-aSvh --progress)
+rsync_options=(-arSvh --progress)
 ### Date/Time Formatting (Formatted to work with Samba & Windows Previous Verions)
 date_time="$(date +GMT-%Y.%m.%d-%H.%M.%S)"
 log_date_time="$(date "+%A %Y-%m-%d %H:%M:%S")"
