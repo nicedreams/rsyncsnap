@@ -65,26 +65,25 @@ Use examples from git repo.
 
 USAGE:
   rsyncsnap <include_file> <destination> <snapshots> <options>
-  rsyncsnap /root/rsyncsnap.include /mnt/backups/rsyncsnap 30 \\
-            --exclude /root/rsyncsnap.exclude \\
-            --logfile /var/log/rsyncsnap.log \\
-            --email user@domain \\
+  rsyncsnap /root/rsyncsnap.include /mnt/backups/rsyncsnap 30 \
+            --exclude /root/rsyncsnap.exclude \
+            --logfile /var/log/rsyncsnap.log \
+            --email user@domain \
             --syslog
 
-  rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups/rsyncsnap \\
-            --exclude /root/rsyncsnap.exclude \\
+  rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups/rsyncsnap \
+            --exclude /root/rsyncsnap.exclude \
             --logfile /var/log/rsyncsnap.log
 
   <include_file>  Full path and filename of rsyncsnap.include file
   <destination>   Where to store backups: /mnt/backups/rsyncsnap
   <snapshots>     Amount of snapshots to keep: 30
 
-CAUTION:        If snapshot amount is set to 1, all snapshots will be removed.
+CAUTION:        If snapshot amount is set to 1, all snapshots will be removed
+                and be left with a single backup.
 
-REMOTE NOTICE:  - Syncing to remote server will NOT auto delete snapshots from
-                  remote server.  You must keep track and remove manually.
-                - Script will preserve hard-links to remote system if using
-                  Linux filesystem like ext4 that supports hardlinks.
+SSH NOTICE:     - Script will preserve hardlinks to remote system as long as
+                  using filesystem that supports hardlinks like ext4.
                 - Recommended to use ssh key authentication for cron jobs using
                   ~/.ssh/config file.
 
@@ -93,7 +92,7 @@ OPTIONS:
 
   -l | --logfile  Path and filename of logfile: /var/log/rsyncsnap.log
 
-  --syslog        Send message to syslog (logger)
+  --syslog        Send SUCCESS/ERROR message to syslog using logger
 
   --email         Send email (mail command)
                   --email user@domain.com  OR  --email root
@@ -105,8 +104,6 @@ Single Run Options:
   --hardlinks     Check inode hardlink info on a file in backup destination
                   --hardlinks <backup_destination> <filename_to_check>
                   --hardlinks /mnt/backups/rsyncsnap filename.ext
-
-  --debug         Put at very end of command to test variables - won't run script
 
   --help          Print this usage information
 ================================================================================
