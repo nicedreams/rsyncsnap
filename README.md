@@ -1,8 +1,8 @@
 # rsyncsnap - Rsync Incremental Backups
 
-Bash script that uses rsync to create multiple incremental backup snapshots of one or multiple sources to a destination using the previous backup.
+Bash script that uses rsync to create multiple incremental backup snapshots of one or multiple sources to a destination using the previous backup.  Works with local drives and with ssh remote systems.  Be sure to use a filesystem that supporting hardlinks like ext4.
 
-Why create this when rsnapshot exists?  Started as a bash script for version control of a linux samba server in a Windows client environment.  Needed a way to work with "Windows Previous Versions" from Windows desktops and samba vss with it's date formatting of folders.  Also liked the fact that all snapshots are date/time stamped for easier restore where rsnapshot uses alpha.0 alpha.1 alpha.2 and so on.  And it's bash so easy for me to modify.  As the script grew it turned into a bash alternative to rsnapshot pretty much.  Since rsyncsnap has been working fine for my production setups I decided to share as an alternative.
+Why create this when rsnapshot and rdiff-backup exists?  Started as a bash script for version control of a linux samba server in a Windows client environment.  Needed a way to work with "Windows Previous Versions" from Windows desktops and samba vss with it's date formatting of folders.  Also liked the fact that all snapshots are date/time stamped for easier restore where rsnapshot uses alpha.0 alpha.1 alpha.2 and so on.  And it's bash so easy for me to modify.  As the script grew it turned into a bash alternative to rsnapshot pretty much.  Since rsyncsnap has been working fine for my production setups I decided to share as an alternative for others.
 
 #### Example directory listing of backups: <GMT-%Y.%m.%d-%H.%M.%S>
 ```
@@ -39,11 +39,6 @@ Uses rsync to create incremental snapshots with hard links to a destination dire
 - Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup.
 - Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed.
 
-## Remote (ssh) Notice:
-- Syncing to remote server will NOT auto delete snapshots from remote server even though entered.  You must keep track and remove manually.  Or create maintenance script on remote server to manage.
-- Will preserve hard-links to remote server.
-- Recommended to use ssh key authentication for automation like cron jobs.  Configure ~/.ssh/config for easier access.
-
 ## Installation
 
 Copy rsyncsnap file to /usr/local/bin or any other directory and give execute permissions.
@@ -65,9 +60,9 @@ vi /root/rsyncsnap.exclude (optional)
 crontab -e (Run backup to local once a day at 3:00AM) (Run backup to remote once a day at 4:00AM)
 
 ```
-#00 03 * * * /usr/local/bin/rsyncsnap <include_file> <destination> <snapshots> <options>
+#00 00 * * * /usr/local/bin/rsyncsnap <include_file> <destination> <snapshots> <options>
  00 03 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email root
- 00 04 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include user@domain:/home/backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email root
+ 00 33 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include ssh-server:/home/backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email user@domain
 ```
 
 ----------------------------------------------------------------------------------
@@ -100,11 +95,10 @@ USAGE:
   <destination>   Where to store backups: /mnt/backups/rsyncsnap
   <snapshots>     Amount of snapshots to keep: 30
 
-  CAUTION:        If snapshot amount is set to 1, all snapshots will be removed.
+CAUTION:        If snapshot amount is set to 1, all snapshots will be removed.
 
-  REMOTE NOTICE:  - Syncing to remote server will NOT auto delete snapshots from
-                    remote server.  You must keep track and remove manually.
-                  - Script will preserve hard-links to remote system.
+SSH NOTICE:     - Script will preserve hardlinks to remote system as long as
+                    using filesystem that supports hardlinks like ext4.
                   - Recommended to use ssh key authentication for cron jobs using
                     ~/.ssh/config file.
 
@@ -113,7 +107,7 @@ OPTIONS:
 
   -l | --logfile  Path and filename of logfile: /var/log/rsyncsnap.log
 
-  --syslog        Send message to syslog (logger)
+  --syslog        Send SUCCESS/ERROR message to syslog using logger
 
   --email         Send email (mail command)
                   --email user@domain.com  OR  --email root
@@ -188,7 +182,7 @@ Get accurate total size of backup using du command
  rsyncsnap --size /mnt/backup/
 ```
 
-List inodes (hardlinks) of files within backup to compare if working
+List inodes (hardlinks) of files within backup to compare if working.  This will find all files in path <filename> and list inodes for each.
 ```
 #rsyncsnap --hardlink <backup_location> <filename>
  rsyncsnap --hardlink /mnt/backup/ .bashrc
