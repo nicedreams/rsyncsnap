@@ -105,7 +105,8 @@ USAGE:
   REMOTE NOTICE:  - Syncing to remote server will NOT auto delete snapshots from
                     remote server.  You must keep track and remove manually.
                   - Script will preserve hard-links to remote system.
-                  - Recommended to use ssh key authentication for cron jobs.
+                  - Recommended to use ssh key authentication for cron jobs using
+                    ~/.ssh/config file.
 
 OPTIONS:
   -e | --exclude  Path and filename of exclude file: /home/user/rsyncsnap.exclude
