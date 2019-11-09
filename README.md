@@ -62,7 +62,7 @@ crontab -e (Run backup to local once a day at 3:00AM) (Run backup to remote once
 ```
 #00 00 * * * /usr/local/bin/rsyncsnap <include_file> <destination> <snapshots> <options>
  00 03 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email root
- 00 33 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include ssh-server:/home/backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email user@domain
+ 00 04 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include ssh-server:/home/backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email user@domain
 ```
 
 ----------------------------------------------------------------------------------
@@ -98,9 +98,9 @@ USAGE:
 CAUTION:        If snapshot amount is set to 1, all snapshots will be removed.
 
 SSH NOTICE:     - Script will preserve hardlinks to remote system as long as
-                    using filesystem that supports hardlinks like ext4.
-                  - Recommended to use ssh key authentication for cron jobs using
-                    ~/.ssh/config file.
+                  using filesystem that supports hardlinks like ext4.
+                - Recommended to use ssh key authentication for cron jobs using
+                  ~/.ssh/config file.
 
 OPTIONS:
   -e | --exclude  Path and filename of exclude file: /home/user/rsyncsnap.exclude
