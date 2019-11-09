@@ -26,11 +26,15 @@
 ##########################################
 ### VARIABLES
 ##########################################
-### Add extra rsync options [example: --dry-run] (Do Not Use --delete / Will cause consistency issues with incremental snapshots)
-rsync_options=(-arSvh --progress)
+### Add extra rsync options [example: --dry-run]
+# Do Not Use --delete / Will cause consistency issues with incremental snapshots.
+# Removing -r  causes rsync not to transfer sub directories even though -a is used.
+# Add --dry-run for testing (-arSvh --dryrun).
+rsync_options=(-arSvh)
 ### Add extra ssh options
+# Remove -q to have SSH verbose output.
 ssh_options=(-n -q)
-### Date/Time Formatting (Formatted to work with Samba & Windows Previous Verions)
+### Date_Time formatting (Formatted to work with Samba & Windows Previous Verions)
 date_time="$(date +GMT-%Y.%m.%d-%H.%M.%S)"
 log_date_time="$(date "+%A %Y-%m-%d %H:%M:%S")"
 ### Temp log location
@@ -122,10 +126,10 @@ perform_rsync() {
     "/" \
     "$backup_dest_dir"/"$backup_base"@"$date_time"/
   then
-    log_subject="[rsyncsnap] ERROR rsync version backup for $backup_base at $backup_dest_dir!"
+    log_subject="[ERROR] (rsyncsnap) rsync version backup for $backup_base at $backup_dest_dir!"
     exit_error
   else
-    log_subject="[rsyncsnap] SUCCESS rsync version backup for $backup_base at $backup_dest_dir"
+    log_subject="[SUCCESS] (rsyncsnap) rsync version backup for $backup_base at $backup_dest_dir"
     printf "  ---- ---- ---- End Rsync Log ---- ---- ---- ---- \n"
   fi
 }
@@ -136,7 +140,7 @@ create_softlink() {
     ### SSH - Create soft link of current date-time to backup just created
     if ! ssh "${ssh_options[@]}" "$backup_dest_dir_ssh" "rm -fv $backup_dest_dir_path/$last_backup ; ln -sv $backup_dest_dir_path/$backup_base@$date_time $backup_dest_dir_path/$last_backup"
     then
-      log_subject="[rsyncsnap] ERROR creating SSH softlink $backup_dest_dir_path/$last_backup"
+      log_subject="[ERROR] (rsyncsnap) creating SSH softlink $backup_dest_dir_path/$last_backup"
       exit_error
     fi
   else
@@ -172,7 +176,7 @@ ssh_remove_old_snapshots() {
   printf "\n%s[rsyncsnap] SSH Removing old snapshots from $backup_dest_dir (Limit: $keep_snapshots)\n"
   if ! ssh "${ssh_options[@]}" "$backup_dest_dir_ssh" "find $backup_dest_dir_path/$backup_base@GMT* -maxdepth 0 -type d |sort -r |tail -n +$keep | while read -r fname; do rm -rf \$fname; done"
   then
-    log_subject="[rsyncsnap] ERROR SSH removing older snapshots from $backup_dest_dir_path/$last_backup"
+    log_subject="[ERROR] (rsyncsnap) SSH removing older snapshots from $backup_dest_dir_path/$last_backup"
     exit 1
   fi
 #  ######---------------------------------######
