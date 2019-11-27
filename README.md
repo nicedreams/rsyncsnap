@@ -2,8 +2,6 @@
 
 Bash script that uses rsync to create multiple incremental backup snapshots of one or multiple sources to a destination using the previous backup.  Works with local drives and with ssh remote systems.  Be sure to use a filesystem that supporting hardlinks like ext4.
 
-Why create this when rsnapshot and rdiff-backup exists?  Started as a bash script for version control of a linux samba server in a Windows client environment.  Needed a way to work with "Windows Previous Versions" from Windows desktops and samba vss with it's date formatting of folders.  Also liked the fact that all snapshots are date/time stamped for easier restore where rsnapshot uses alpha.0 alpha.1 alpha.2 and so on.  And it's bash so easy for me to modify.  As the script grew it turned into a bash alternative to rsnapshot pretty much.  Since rsyncsnap has been working fine for my production setups I decided to share as an alternative for others.
-
 #### Example directory listing of backups: <GMT-%Y.%m.%d-%H.%M.%S>
 ```
 ls
@@ -24,20 +22,20 @@ Uses rsync to create incremental snapshots with hard links to a destination dire
 - Can create and store backup snapshots on local machine or remote server using ssh.
 - Snapshots are Samba `vfs_shadow_copy2` compatible with Windows Previous Versions.
 - A soft link will be updated to most current backup within backup directory.
-- The use of .includes file is for adding single or multiple sources to backup.  You can use any name for the file and extension.  Just something easy to keep track of.
-- The use of .excludes file is for excluding directories and files patterns from backup.  You can use any name for the file and extension.  Just something easy to keep track of.
-- Destination directory (snapshot archive) will be named the same as what the include filename is.  (mybackup.include = /mnt/ext-backup/rsyncsnap/mybackup@GMT-2019.07.18-15.01.25)  This way you can have multiple backup archives with their own custom name if needed.
+- The use of .includes file is for adding single or multiple sources to backup.  You can use any name for the file and extension.
+- The use of .excludes file is for excluding directories and files patterns from backup.  You can use any name for the file and extension.
+- Destination directory (snapshot archive) will be named the same as what the include filename is.  (mybackup.include = /mnt/ext-backup/rsyncsnap/mybackup@GMT-2019.07.18-15.01.25)  Can have multiple backup archives with their own custom name.
 
 ----------------------------------------------------------------------------------
 
 - Recommended to name backup destination directory "rsyncsnap" to help keep track and knowing how your backup snapshots were made.  (/mnt/ext-backup/rsyncsnap)
-- Ranger (ranger.github.io) makes it easier to browse snapshots in destination when using shell when have a lot of snapshots in destination.
+- Ranger (ranger.github.io) makes it easier to browse snapshots in destination when using shell when have a lot of snapshots in destination.  Or use any file manager you like.
 
 ----------------------------------------------------------------------------------
 
 ## Warnings
 - Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup.
-- Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed.
+- Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed and be left with only 1 backup.
 
 ## Installation
 
@@ -72,55 +70,82 @@ crontab -e (Run backup to local once a day at 3:00AM) (Run backup to remote once
 ```
 rsyncsnap
 
-Uses rsync to create incremental snapshots with hard links.
 https://github.com/nicedreams/rsyncsnap
 
-Add directories to backup in rsyncsnap.include (mandatory)
-Add directories to exclude in rsyncsnap.exclude (optional)
-Use examples from git repo.
+Uses rsync to create incremental snapshots with hard links.
+Only changed files use disk space.
+
+Add directories to backup in rsyncsnap.include file (mandatory)
+Add directories to exclude in rsyncsnap.exclude file (optional)
+Use include/exclude examples from git repo README if needed.
+
+Name of backup is set using first part of filename.  Can name include
+file anything you want and extension is not required.
 
 USAGE:
   rsyncsnap <include_file> <destination> <snapshots> <options>
-  rsyncsnap /root/rsyncsnap.include /mnt/backups/rsyncsnap 30 \
-            --exclude /root/rsyncsnap.exclude \
-            --logfile /var/log/rsyncsnap.log \
-            --email user@domain \
+
+  rsyncsnap /root/rsyncsnap.include /mnt/backups/rsyncsnap 15 \\
+            --exclude /root/rsyncsnap.exclude \\
+            --logfile /var/log/rsyncsnap.log \\
+            --email user@domain \\
             --syslog
 
-  rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups/rsyncsnap \
-            --exclude /root/rsyncsnap.exclude \
-            --logfile /var/log/rsyncsnap.log
+  rsyncsnap /root/rsyncsnap.include \\
+            user@domain:/home/user/backups/rsyncsnap 15 \\
+            --exclude /root/rsyncsnap.exclude \\
+            --logfile /var/log/rsyncsnap-remote.log
 
   <include_file>  Full path and filename of rsyncsnap.include file
   <destination>   Where to store backups: /mnt/backups/rsyncsnap
-  <snapshots>     Amount of snapshots to keep: 30
+  <snapshots>     Amount of snapshots to keep: 15
 
-CAUTION:        If snapshot amount is set to 1, all snapshots will be removed.
+CAUTION:        If snapshot amount is set to 1, all snapshots will be
+                removed and be left with a single backup.
 
-SSH NOTICE:     - Script will preserve hardlinks to remote system as long as
-                  using filesystem that supports hardlinks like ext4.
-                - Recommended to use ssh key authentication for cron jobs using
-                  ~/.ssh/config file.
+SSH NOTICE:     - Script will preserve hardlinks to remote system as
+                  long as using filesystem that supports hardlinks
+                  like ext4.
+                - Recommended to use ssh key authentication for cron
+                  jobs using ~/.ssh/config file.
+                - Need to be able to login to remote server as root
+                  when backing up /etc and other system files.
+                  Recommend modify remote server /etc/sshd_config with:
+                    PermitRootLogin without-password
+                  to allow root login only with ssh keys.
 
 OPTIONS:
-  -e | --exclude  Path and filename of exclude file: /home/user/rsyncsnap.exclude
+  -e | --exclude  Path of exclude file: /home/user/rsyncsnap.exclude
 
-  -l | --logfile  Path and filename of logfile: /var/log/rsyncsnap.log
+  -l | --logfile  Path of logfile: /var/log/rsyncsnap.log
 
   --syslog        Send SUCCESS/ERROR message to syslog using logger
 
   --email         Send email (mail command)
                   --email user@domain.com  OR  --email root
 
+  --datetime      Default: GMT-%Y.%m.%d-%H.%M.%S
+                  Change date/time formatting of backup directory
+                  Uses linux date command formatting
+                  --datetime %m.%d.%Y-%H.%M
+
+  --test          Perform rsync version backup using --dry-run to test
+                  backup.  No actual backup will be performed.
+                  Use without -l, --syslog or --email options.
+
 Single Run Options:
-  -du | --size    Display accurate size of entire backup destination (du)
+  -du | --size    Get accurate size of entire backup destination (du)
                   --size /mnt/backups/rsyncsnap/
 
-  --hardlinks     Check inode hardlink info on a file in backup destination
+  --hardlinks     Check inode hardlink info of file in backup
                   --hardlinks <backup_destination> <filename_to_check>
                   --hardlinks /mnt/backups/rsyncsnap filename.ext
 
   --help          Print this usage information
+
+RESTORE:
+  To restore files from backup, manually copy files from backup
+  date/time destination directory to original or alternate location.
 ```
 
 ----------------------------------------------------------------------------------
