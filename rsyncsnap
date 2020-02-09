@@ -544,13 +544,16 @@ trap trap_exit 2
   printf "\n-------------------------------------------------------------------------------\n"
 
   # Check if destination directory exists
-  if [[ ! -d "${backup_dest_dir}" ]]
+  if [[ "${backup_dest_dir}" != *:* ]]
   then
-    log_subject="[ERROR] (rsyncsnap) ${backup_dest_dir} not found or no persmissions to directory!"
-    printf "\n%s[rsyncsnap] ERROR ${backup_dest_dir} not found or no persmissions to directory - Exiting!\n[rsyncsnap] Type $0 --help  for usage\n\n"
-    exit_error
+    if [[ ! -d "${backup_dest_dir}" ]]
+    then
+      log_subject="[ERROR] (rsyncsnap) ${backup_dest_dir} not found or no persmissions to directory!"
+      printf "\n%s[rsyncsnap] ERROR ${backup_dest_dir} not found or no persmissions to directory - Exiting!\n[rsyncsnap] Type $0 --help  for usage\n\n"
+      exit_error
+    fi
   fi
-
+  
   ### Run main rsync function
   perform_rsync
   # Run create softlink function
