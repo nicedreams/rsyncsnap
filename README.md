@@ -1,41 +1,32 @@
 # rsyncsnap - Rsync Incremental Backups
 
-Bash script that uses rsync to create multiple incremental backup snapshots of one or multiple sources to a destination using the previous backup.  Works with local drives and with ssh remote systems.  Be sure to use a filesystem that supporting hardlinks like ext4.
-
-#### Example directory listing of backups: <%Y.%m.%d-%H.%M.%S>
-```
-ls
-/mnt/backups/rsyncsnap/rsyncsnap-current
-/mnt/backups/rsyncsnap/rsyncsnap@2019.07.15-14.58.11
-/mnt/backups/rsyncsnap/rsyncsnap@2019.07.16-14.58.40
-/mnt/backups/rsyncsnap/rsyncsnap@2019.07.18-14.59.07
-/mnt/backups/rsyncsnap/rsyncsnap@2019.07.18-14.59.10
-/mnt/backups/rsyncsnap/rsyncsnap@2019.07.18-15.01.25
-``` 
+Bash script that uses rsync to create incremental hard link snapshots of single or multiple directories to local or remote ssh destination.
 
 ----------------------------------------------------------------------------------
 
 ## Features
 
-Uses rsync to create incremental snapshots with hard links to a destination directory.
-
 - Can create and store backup snapshots on local machine or remote server using ssh.
 - Snapshots are Samba `vfs_shadow_copy2` compatible with Windows Previous Versions.
 - A soft link will be updated to most current backup within backup directory.
+- Using single directory as source will backup single directory.
+- Using include file as source will backup directories listed in file.
 - The use of .includes file is for adding single or multiple sources to backup.  You can use any name for the file and extension.
 - The use of .excludes file is for excluding directories and files patterns from backup.  You can use any name for the file and extension.
-- Destination directory (snapshot archive) will be named the same as what the include filename is.  (mybackup.include = /mnt/ext-backup/rsyncsnap/mybackup@2019.07.18-15.01.25)  Can have multiple backup archives with their own custom name.
+- Destination directory (snapshot archive) will be named the same as what the include filename is.  (mybackup.include = /mnt/ext-backup/rsyncsnap/mybackup@2019.07.18-15.01.25)  Can have multiple backup archives with their own custom name.  Can use --backup-name or --name to use that name instead of what file/source is named.
 
 ----------------------------------------------------------------------------------
 
 - Recommended to name backup destination directory "rsyncsnap" to help keep track and knowing how your backup snapshots were made.  (/mnt/ext-backup/rsyncsnap)
-- Ranger (ranger.github.io) makes it easier to browse snapshots in destination when using shell when have a lot of snapshots in destination.  Or use any file manager you like.
+- Ranger (ranger.github.io) makes it easier to browse snapshots in destination when using shell when have a lot of snapshots in destination.  Or use any file manager you like be is text or GUI.
 
 ----------------------------------------------------------------------------------
 
 ## Warnings
 - Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup.
 - Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed and be left with only 1 backup.
+- Changing permissions on destination directories after a snapshot backup was performed can cause issues during next snapshot run since rsync is set to preserve owner and group permissions.
+- Be careful when using --limit-amount and --limit-days together as --limit-days may remove more snapshots than planned if not used properly.
 
 ## Installation
 
@@ -50,17 +41,29 @@ chmod +x /usr/local/bin/rsyncsnap
 Create rsyncsnap.include and rsyncsnap.exclude files.  Use the example files in this README or the to help you with your own includes and excludes.  Follows normal rsync patterns.  rsyncsnap.excludes creation is optional if not needed.
 ```
 vi /root/rsyncsnap.include
-vi /root/rsyncsnap.exclude (optional)
+vi /root/rsyncsnap.exclude
 ```
+
+#### Example directory listing of backups: <%Y.%m.%d-%H.%M.%S>
+```
+ls
+/mnt/backups/rsyncsnap/.rsyncsnap-current
+/mnt/backups/rsyncsnap/rsyncsnap@2019.07.15-14.58.11
+/mnt/backups/rsyncsnap/rsyncsnap@2019.07.16-14.58.40
+/mnt/backups/rsyncsnap/rsyncsnap@2019.07.18-14.59.07
+/mnt/backups/rsyncsnap/rsyncsnap@2019.07.18-14.59.10
+/mnt/backups/rsyncsnap/rsyncsnap@2019.07.18-15.01.25
+``` 
 
 #### Set cron job to run once or multiple times a day for daily snapshots
 
-crontab -e (Run backup to local once a day at 3:00AM) (Run backup to remote once a day at 4:00AM)
+crontab -e
 
 ```
 #00 00 * * * /usr/local/bin/rsyncsnap <include_file> <destination> <snapshots> <options>
- 00 03 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email root
- 00 04 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include ssh-server:/home/backups/rsyncsnap 30 --exclude /root/rsyncsnap.exclude --logfile /var/log/rsyncsnap.log --email user@domain
+ 00 02 * * * /usr/local/bin/rsyncsnap /home/user /mnt/ext-backups/rsyncsnap --limit-amount 30 --email user
+ 00 03 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap --exclude /root/rsyncsnap.exclude --limit-amount 15 --limit-days 30 --logfile /var/log/rsyncsnap.log --email root
+ 00 04 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include ssh-server:/home/backups/rsyncsnap --exclude /root/rsyncsnap.exclude --limit-amount 30 --logfile /var/log/rsyncsnap.log --email user@domain
 ```
 
 ----------------------------------------------------------------------------------
@@ -68,97 +71,104 @@ crontab -e (Run backup to local once a day at 3:00AM) (Run backup to remote once
 ## Usage
 
 ```
+================================================================================
 rsyncsnap
 
-Uses rsync to create incremental snapshots with hard links.
-Only changed or new files use disk space.
+Uses rsync to create incremental hard link snapshots of single or multiple
+directories to local or remote ssh destination.
 
 https://github.com/nicedreams/rsyncsnap
 
-Add directories to backup in rsyncsnap.include file         (mandatory)
-Add directories to exclude in rsyncsnap.exclude file        (optional)
-Use include/exclude examples from git repo README.
-Can limit snapshots using --snap-amount and/or --snap-days options
+- Using single directory as source will backup single directory.
+- Using include file as source will backup directories listed in file.
 
-Name of backup is set using first part of include filename. Can name include
-file and extension anything you want and extension is not required.
-Recommend using rsyncsnap as filename to keep track of how backup was performed
-unless using multiple backup sets.
-Backup name can also be changed using option --backup-name option overwriting
-what the include file is named.
+- Add directories to backup in rsyncsnap.include file.
+- Add directories to exclude in rsyncsnap.exclude file.
 
+--------------------------------------------------------------------------------
 USAGE:
-  rsyncsnap  <include_file>  <destination>  <options>
 
+  rsyncsnap  <source>  <destination>  <options>
+
+  # Using include file (rsyncsnap.include)
   rsyncsnap /root/rsyncsnap.include /mnt/backups \\
             --exclude /root/rsyncsnap.exclude \\
-            --snap-amount 30 \\
-            --snap-days 15 \\
+            --limit-amount 30 \\
+            --limit-days 15 \\
             --logfile /var/log/rsyncsnap.log \\
             --email user@domain \\
             --syslog
 
-  rsyncsnap /root/rsyncsnap.include \\
-            user@domain:/home/user/backups \\
+  # Using single source directory (/home/user)
+  rsyncsnap /home/user /mnt/backups \\
+            --limit-amount 30 \\
+            --limit-days 15 \\
+            --email user@domain
+
+  # Using include file to SSH destination (user@domain:/)
+  rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups \\
             --exclude /root/rsyncsnap.exclude \\
-            --snap-amount 30 \\
+            --limit-amount 30 \\
             --logfile /var/log/rsyncsnap-remote.log
 
-  <include_file>  Full path and filename of rsyncsnap.include file
-  <destination>   Where to store backups: /mnt/backups
+  <source>        Full path and filename of directory or rsyncsnap.include file
+  <destination>   Where to store backups
+  <options>       Listed below
 
-SSH NOTICE:     - Script will preserve hardlinks to remote system as long as
-                  using filesystem that supports hardlinks like ext4, btrfs, etc.
-                - Recommended to use ssh key authentication for cron jobs
-                  using ~/.ssh/config file.
-                - Need to be able to login to remote server as root when
-                  backing up /etc and other system files or will get errors.
-                - Recommend modify remote server /etc/sshd_config with
-                    PermitRootLogin without-password
-
-SNAPSHOTS:
-                - Can keep snapshots by amount and/or by days using either one
-                  or both of the below options.
-                - Excessive amount or older days of snapshots will be deleted.
-                - If no options are used then no backups will be deleted.
-                - Deleting by days is based on folder timestamps and system time.
-                - Recommend not using --snap-days if not sure if system time or
-                  modification times.  Like on remote systems via SSH.
-                  
-  --snap-amount   Amount of snapshots to keep.
-  -sa             --snap-amount 30           (Keep 30 total snapshots)
-
-  --snap-days     How many days to keep snapshots.
-  -sd             --snap-days 15             (Keep 15 days of snapshots)
-
+--------------------------------------------------------------------------------
 OPTIONS:
-  --exclude | -e  Path of exclude file: /home/user/rsyncsnap.exclude
-  
-  --backup-name   Name of backup.
-                  Overwrites naming backup based on include file name.
-                  --backup-name mybackup
 
-  --logfile | -l  Path of logfile: /var/log/rsyncsnap.log
+  --limit-amount  Amount of snapshots to keep.
+  --snap-amount   --limit-amount 30                  (Keep 30 total snapshots)
 
-  --syslog        Send SUCCESS/ERROR message to syslog using logger
+  --limit-days    How many days to keep snapshots.
+  --snap-days     --limit-days 15                    (Keep 15 days of snapshots)
+                  **Not recommended when using SSH for destination**
 
-  --email         Send email (mail command)
+  --exclude | -e  Path of exclude file
+                  --exclude /home/user/rsyncsnap.exclude
+
+  --name          Name of backup.
+  --backup-name   Overwrites naming backup based on include file name.
+                  --name mybackup
+
+  --logfile | -l  Path of logfile
+                  Will append current log to existing file if exists.
+                  --logfile /var/log/rsyncsnap.log
+
+  --syslog        Send SUCCESS/WARNING/ERROR message to syslog using logger
+
+  --email | -mail Send email using mail command
                   --email user@domain.com  OR  --email root
 
   --datetime      Default: %Y.%m.%d-%H.%M.%S
   -dt             Change date/time formatting of backup directory
                   Uses linux date command formatting
-                  --datetime %m.%d.%Y-%H.%M
+                  --datetime %m-%d-%Y-%H.%M.%S
+                  
+  --rsync-options Default: ${rsync_options[*]}
+                  Use custom rsync options instead of built-in default.
+                  **Must Use \"quotes\"
+                  --rsync-options \"-axHAWXS --numeric-ids\"
+                  
+  --ssh-options   Include options for SSH
+                  **Must Use \"quotes\"
+                  --ssh-options \"-p 22 -i /home/user/.ssh/keyfile\"
+
+  --ssh           Force using SSH as destination. Use if having issues.
 
   --test |        Perform rsync version backup using --dry-run to test backup.
   --dryrun        No actual backup will be performed.
-                  Use without -logfile --syslog --email options.
+                  **Use without -logfile --syslog --email options.**
 
   --debug         Adding --debug to end of full command will not run backup
                   and only list all variables for testing.
                   Good way to test if having issues with options.
+                  **Use as the very last option or could give false results**
 
-Single Run Options:
+--------------------------------------------------------------------------------
+OPTIONS (SINGLE RUN):
+
   -du | --size    Get accurate size of entire backup destination (du)
                   --size /mnt/backups/rsyncsnap/
 
@@ -167,12 +177,57 @@ Single Run Options:
                   --compare /mnt/backups/rsyncsnap filename.ext
 
   -v | --version  Show rsyncsnap version information.
-  
+
   -h | --help     Print this usage information.
 
+--------------------------------------------------------------------------------
+NAME OF BACKUP:
+  - Name of backup is set using first part of include filename or the source
+    directory name if doing single directory backup.
+  - Can name include file and extension anything and extension is not required.
+  - Recommend using rsyncsnap as filename when using includes file to keep track
+    of how backup was performed.
+  - Backup name can be changed using option --backup-name or --name option
+    overwriting what the include file or source directory would name backup.
+  
+  $0 /home/user /mnt/external-drive --name mybackup
+
+SSH:
+  - Use --ssh-options to add regular SSH arguments to command
+    --ssh-options \"-p 22 -i /home/user/.ssh/key\"
+  - Script will preserve hardlinks to remote system as long as using filesystem
+    that supports hardlinks like ext4, btrfs, etc.
+  - Recommended to use ssh key authentication for cron jobs using
+    ~/.ssh/config file.
+  - Need to be able to login to remote server as root when backing up /etc or
+    other files a normal user does not have access to or will get errors.
+  - Recommend modify remote server /etc/sshd_config with:
+    PermitRootLogin without-password
+
+SNAPSHOTS:
+  - Can keep snapshots by amount and/or by days using either one or both of the
+    below options.
+  - Excessive amount or older days of snapshots will be deleted.
+  - If no options are used then no snapshots will be deleted.
+  - Deleting by days is based on folder timestamps and system time.
+  - Recommend not using --limit-days when not sure if remote system (SSH) time
+    or modification times are accurate.
+
+WARNINGS:
+  - Changing permissions on destination directories after a snapshot backup was
+    performed can cause issues during next snapshot run since rsync is set
+    to preserve owner and group permissions.
+  - Use caution to what user is performing backup. Changing user after inital
+    snapshots were created can cause issues.
+  - Be careful when using --limit-amount and --limit-days together as
+    --limit-days may remove more snapshots than planned if not used properly.
+
+--------------------------------------------------------------------------------
 RESTORE:
   To restore files from backup, manually copy files from backup date/time
   destination directory to original or alternate location.
+
+================================================================================
 ```
 
 ----------------------------------------------------------------------------------
@@ -238,6 +293,6 @@ Get accurate total size of backup using du command
 
 List inodes (hardlinks) of files within backup to compare if working.  This will find all files in path <filename> and list inodes for each.
 ```
-#rsyncsnap --hardlink <backup_location> <filename>
- rsyncsnap --hardlink /mnt/backup/ .bashrc
+#rsyncsnap --compare <backup_location> <filename>
+ rsyncsnap --compare /mnt/backup/ .bashrc
 ```

@@ -26,6 +26,9 @@
 ##########################################
 ### VARIABLES
 ##########################################
+#set -x
+#set -eu
+#
 ## Add extra rsync options
 # WARNING: Do Not Use --delete Will cause consistency issues with incremental snapshots.
 # WARNING: Removing -r causes rsync not to transfer sub-directories even though -a is used.
@@ -54,29 +57,26 @@ backup_format="${backup_base}@${date_time}"
 
 usage() {
 echo "
-===============================================================================
+================================================================================
 rsyncsnap
 
-Uses rsync to create incremental snapshots with hard links.
-Only changed or new files use disk space.
+Uses rsync to create incremental hard link snapshots of single or multiple
+directories to local or remote ssh destination.
 
 https://github.com/nicedreams/rsyncsnap
 
-Add directories to backup in rsyncsnap.include file         (mandatory)
-Add directories to exclude in rsyncsnap.exclude file        (optional)
-Use include/exclude examples from git repo README.
-Can limit snapshots using --limit-amount and/or --limit-days options
+- Using single directory as source will backup single directory.
+- Using include file as source will backup directories listed in file.
 
-Name of backup is set using first part of include filename. Can name include
-file and extension anything you want and extension is not required.
-Recommend using rsyncsnap as filename to keep track of how backup was performed
-unless using multiple backup sets.
-Backup name can also be changed using option --backup-name option overwriting
-what the include file is named.
+- Add directories to backup in rsyncsnap.include file.
+- Add directories to exclude in rsyncsnap.exclude file.
 
+--------------------------------------------------------------------------------
 USAGE:
-  rsyncsnap  <include_file>  <destination>  <options>
 
+  rsyncsnap  <source>  <destination>  <options>
+
+  # Using include file (rsyncsnap.include)
   rsyncsnap /root/rsyncsnap.include /mnt/backups \\
             --exclude /root/rsyncsnap.exclude \\
             --limit-amount 30 \\
@@ -85,67 +85,76 @@ USAGE:
             --email user@domain \\
             --syslog
 
-  rsyncsnap /root/rsyncsnap.include \\
-            user@domain:/home/user/backups \\
+  # Using single source directory (/home/user)
+  rsyncsnap /home/user /mnt/backups \\
+            --limit-amount 30 \\
+            --limit-days 15 \\
+            --email user@domain
+
+  # Using include file to SSH destination (user@domain:/)
+  rsyncsnap /root/rsyncsnap.include user@domain:/home/user/backups \\
             --exclude /root/rsyncsnap.exclude \\
             --limit-amount 30 \\
             --logfile /var/log/rsyncsnap-remote.log
 
-  <include_file>  Full path and filename of rsyncsnap.include file
-  <destination>   Where to store backups: /mnt/backups
+  <source>        Full path and filename of directory or rsyncsnap.include file
+  <destination>   Where to store backups
+  <options>       Listed below
 
-SSH NOTICE:     - Script will preserve hardlinks to remote system as long as
-                  using filesystem that supports hardlinks like ext4, btrfs, etc.
-                - Recommended to use ssh key authentication for cron jobs
-                  using ~/.ssh/config file.
-                - Need to be able to login to remote server as root when
-                  backing up /etc and other system files or will get errors.
-                - Recommend modify remote server /etc/sshd_config with
-                    PermitRootLogin without-password
-
-SNAPSHOTS:
-                - Can keep snapshots by amount and/or by days using either one
-                  or both of the below options.
-                - Excessive amount or older days of snapshots will be deleted.
-                - If no options are used then no backups will be deleted.
-                - Deleting by days is based on folder timestamps and system time.
-                - Recommend not using --limit-days if not sure if system time or
-                  modification times.  Like on remote systems via SSH.
+--------------------------------------------------------------------------------
+OPTIONS:
 
   --limit-amount  Amount of snapshots to keep.
-  --snap-amount   --limit-amount 30           (Keep 30 total snapshots)
+  --snap-amount   --limit-amount 30                  (Keep 30 total snapshots)
 
   --limit-days    How many days to keep snapshots.
-  --snap-days     --limit-days 15             (Keep 15 days of snapshots)
+  --snap-days     --limit-days 15                    (Keep 15 days of snapshots)
+                  **Not recommended when using SSH for destination**
 
-OPTIONS:
-  --exclude | -e  Path of exclude file: /home/user/rsyncsnap.exclude
+  --exclude | -e  Path of exclude file
+                  --exclude /home/user/rsyncsnap.exclude
 
-  --backup-name   Name of backup.
-                  Overwrites naming backup based on include file name.
-                  --backup-name mybackup
+  --name          Name of backup.
+  --backup-name   Overwrites naming backup based on include file name.
+                  --name mybackup
 
-  --logfile | -l  Path of logfile: /var/log/rsyncsnap.log
+  --logfile | -l  Path of logfile
+                  Will append current log to existing file if exists.
+                  --logfile /var/log/rsyncsnap.log
 
-  --syslog        Send SUCCESS/ERROR message to syslog using logger
+  --syslog        Send SUCCESS/WARNING/ERROR message to syslog using logger
 
-  --email         Send email (mail command)
-  --mail          --email user@domain.com  OR  --email root
+  --email | -mail Send email using mail command
+                  --email user@domain.com  OR  --email root
 
   --datetime      Default: %Y.%m.%d-%H.%M.%S
   -dt             Change date/time formatting of backup directory
                   Uses linux date command formatting
-                  --datetime %m.%d.%Y-%H.%M
+                  --datetime %m-%d-%Y-%H.%M.%S
+                  
+  --rsync-options Default: ${rsync_options[*]}
+                  Use custom rsync options instead of built-in default.
+                  **Must Use \"quotes\"
+                  --rsync-options \"-axHAWXS --numeric-ids\"
+                  
+  --ssh-options   Include options for SSH
+                  **Must Use \"quotes\"
+                  --ssh-options \"-p 22 -i /home/user/.ssh/keyfile\"
+
+  --ssh           Force using SSH as destination. Use if having issues.
 
   --test |        Perform rsync version backup using --dry-run to test backup.
   --dryrun        No actual backup will be performed.
-                  Use without -logfile --syslog --email options.
+                  **Use without -logfile --syslog --email options.**
 
   --debug         Adding --debug to end of full command will not run backup
                   and only list all variables for testing.
                   Good way to test if having issues with options.
+                  **Use as the very last option or could give false results**
 
-Single Run Options:
+--------------------------------------------------------------------------------
+OPTIONS (SINGLE RUN):
+
   -du | --size    Get accurate size of entire backup destination (du)
                   --size /mnt/backups/rsyncsnap/
 
@@ -157,16 +166,63 @@ Single Run Options:
 
   -h | --help     Print this usage information.
 
+--------------------------------------------------------------------------------
+NAME OF BACKUP:
+  - Name of backup is set using first part of include filename or the source
+    directory name if doing single directory backup.
+  - Can name include file and extension anything and extension is not required.
+  - Recommend using rsyncsnap as filename when using includes file to keep track
+    of how backup was performed.
+  - Backup name can be changed using option --backup-name or --name option
+    overwriting what the include file or source directory would name backup.
+  
+  $0 /home/user /mnt/external-drive --name mybackup
+
+SSH:
+  - Use --ssh-options to add regular SSH arguments to command
+    --ssh-options \"-p 22 -i /home/user/.ssh/key\"
+  - Script will preserve hardlinks to remote system as long as using filesystem
+    that supports hardlinks like ext4, btrfs, etc.
+  - Recommended to use ssh key authentication for cron jobs using
+    ~/.ssh/config file.
+  - Need to be able to login to remote server as root when backing up /etc or
+    other files a normal user does not have access to or will get errors.
+  - Recommend modify remote server /etc/sshd_config with:
+    PermitRootLogin without-password
+
+SNAPSHOTS:
+  - Can keep snapshots by amount and/or by days using either one or both of the
+    below options.
+  - Excessive amount or older days of snapshots will be deleted.
+  - If no options are used then no snapshots will be deleted.
+  - Deleting by days is based on folder timestamps and system time.
+  - Recommend not using --limit-days when not sure if remote system (SSH) time
+    or modification times are accurate.
+
+WARNINGS:
+  - Changing permissions on destination directories after a snapshot backup was
+    performed can cause issues during next snapshot run since rsync is set
+    to preserve owner and group permissions.
+  - Use caution to what user is performing backup. Changing user after inital
+    snapshots were created can cause issues.
+  - Be careful when using --limit-amount and --limit-days together as
+    --limit-days may remove more snapshots than planned if not used properly.
+
+--------------------------------------------------------------------------------
 RESTORE:
   To restore files from backup, manually copy files from backup date/time
   destination directory to original or alternate location.
-===============================================================================
+
+================================================================================
 
 "
 }
 
 version_info() {
-  printf "\nrsyncsnap version 3.0\n\n"
+  printf "\nrsyncsnap version 3.0\n"
+  printf "
+  - (3/22/20) Added ability to use single source directory or include file.
+\n"
 }
 
 rsync_cmd_dir() {
@@ -191,8 +247,8 @@ rsync_cmd_include() {
 }
 
 perform_rsync() {
-  if [[ -d "${backup_include_file}" ]] || [[ "${use_local}" == "Y" ]]; then rsync_cmd="rsync_cmd_dir"; fi
-  if [[ -f "${backup_include_file}" ]] || [[ "${use_include}" == "Y" ]]; then rsync_cmd="rsync_cmd_include"; fi
+  if [[ -d "${backup_include_file}" ]]; then rsync_cmd="rsync_cmd_dir"; fi
+  if [[ -f "${backup_include_file}" ]]; then rsync_cmd="rsync_cmd_include"; fi
 
   printf "\n%s[rsyncsnap] Performing rsync version backup to ${backup_dest_dir}\n"
   printf "  ---- ---- ---- Begin Rsync Log ---- ---- ---- ---- \n"
@@ -209,6 +265,7 @@ create_softlink() {
   printf "\n%s[rsyncsnap] Creating new softlink to latest version backup at ${backup_dest_dir}\n"
   if [[ "${backup_dest_dir}" = *:* ]] || [[ "${use_ssh}" == "Y" ]]; then
     ### SSH - Create soft link of current date-time to backup just created
+    ### DO NOT QUOTE VARIABLES IN SSH
     if ! ssh "${ssh_options[@]}" "${backup_dest_dir_ssh}" "rm -fv ${backup_dest_dir_path}/${last_backup} ; ln -sv ${backup_dest_dir_path}/${backup_format} ${backup_dest_dir_path}/${last_backup}"
     then
       log_subject="[ERROR] (rsyncsnap) creating SSH softlink ${backup_dest_dir_path}/${last_backup}"
@@ -321,7 +378,6 @@ test_vars() {
   printf "\n%s backup_dest_dir_path: \t ${backup_dest_dir_path}"
   printf "\n%s pre_backup_base: \t ${pre_backup_base}"
   printf "\n%s backup_base: \t\t ${backup_base}"
-  printf "\n%s new_backup_base: \t ${new_backup_base}"
   printf "\n%s snap_days: \t\t ${snapshot_amount_days}"
   printf "\n%s snap_amount: \t\t ${snapshot_amount}"
   printf "\n%s num_existing: \t ${num_existing}"
@@ -422,6 +478,8 @@ cleanup() {
 }
 
 trap_exit() {
+  # Set mail subject
+  log_subject="[ERROR] (rsyncsnap) Ended forceably and trapped"
   # Create logfile if enabled
   create_logfile
   # Send mail if enabled
@@ -459,7 +517,7 @@ case "$key" in
     fi
     set_send_logfile="Y"
   ;;
-  --backup-name)
+  --name|--backup-name)
     backup_base="$2"
     last_backup=".${backup_base}-current"
     backup_format="${backup_base}@${date_time}"
@@ -525,14 +583,19 @@ case "$key" in
     shift
     list_hardlinks
   ;;
+  --rsync-options)
+    rsync_options=("$2")
+    shift
+  ;;
   --ssh)
     use_ssh="Y"
   ;;
-  --local)
-    use_local="Y"
-  ;;
-  --file)
-    use_include="Y"
+  --ssh-options)
+    more_ssh_options=( "$2")
+    # do not quote ssh_options variable
+    ssh_options+=( ${more_ssh_options[@]})
+    rsync_options+=( -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${more_ssh_options[@]}")
+    shift
   ;;
   --debug)
     test_vars
