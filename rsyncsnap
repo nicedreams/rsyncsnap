@@ -33,7 +33,7 @@ ssh_options=(-n -q)
 ## datetime formatting
 datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"
 ## Temp log location
-log_tmp="/tmp/rsyncsnap.tmp"
+log_tmp="$(mktemp)" || log_tmp="/tmp/rsyncsnap-${RANDOM}.tmp"
 ## Source location removing trailing slash variable
 source="${1%/}"
 ## Destination directory to store backups removing trailing slash from variable)
