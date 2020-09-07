@@ -1,4 +1,4 @@
-### rsyncsnap.exclude
+### rsyncsnap.exclude (EXAMPLE FILE - MODIFY FOR YOUR SETUP)
 ## EXCLUDE COMMON PATTERNS NORMALLY NOT NEEDED TO BE BACKED UP (Mostly from /home/) ##
 */cache
 */.cache
@@ -57,3 +57,7 @@
 */Sync
 */Syncthing
 */syncthing
+*/rsyncsnap*
+*/.mozilla
+*/rdiff-backup*
+*/restic*

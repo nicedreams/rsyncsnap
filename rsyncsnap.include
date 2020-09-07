@@ -1,4 +1,5 @@
-### rsyncsnap.include ( Use Trailing Slashes /folder/ )
+### rsyncsnap.include (EXAMPLE FILE - MODIFY FOR YOUR SETUP)
+### ( Use Trailing Slashes /folder/
 /etc/
 /root/
 /home/
