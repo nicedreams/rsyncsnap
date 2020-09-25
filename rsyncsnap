@@ -22,7 +22,7 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-program_title="RSYNCSNAP"
+program_title="$(basename $0)"
 ## Add extra rsync options
 ## NOTICE: Do Not Use --delete Will cause consistency issues with incremental snapshots.
 ## NOTICE: Removing -r causes rsync not to transfer sub-directories even though -a is used for some reason.
