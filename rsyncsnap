@@ -22,7 +22,8 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-program_title="$(basename $0)"
+version="0.5.1"
+program_title="${0##*/}"
 ## Add extra rsync options
 ## NOTICE: Do Not Use --delete Will cause consistency issues with incremental snapshots.
 ## NOTICE: Removing -r causes rsync not to transfer sub-directories even though -a is used for some reason.
@@ -625,6 +626,11 @@ main() {
       exit 0
     ;;
   # ------------------------------------------------------------
+    -v|--version)
+      printf '%s\n' "${program_title} -- v${version}"
+      exit 0
+    ;;
+# ------------------------------------------------------------
     -*)
       err "Unknown Option: '${option}' -- Type '$0 --help' for usage information"
       exit 0
