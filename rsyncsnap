@@ -27,7 +27,7 @@ program_title="${0##*/}"
 ## Add extra rsync options
 ## NOTICE: Do Not Use --delete Will cause consistency issues with incremental snapshots.
 ## NOTICE: Removing -r causes rsync not to transfer sub-directories even though -a is used for some reason.
-rsync_options=(-arvhxSR)
+rsync_options=(-arvhxSR --numeric-ids)
 #rsync_options=(-avhxRHAWXS)
 ## Add extra ssh options (Remove -q to have SSH verbose output.)
 ssh_options=(-n -q)
@@ -171,9 +171,6 @@ OPTIONS:
                   Use custom rsync options instead of built-in default.
                   **Must Use \"quotes\"
                   --rsync-options \"-axHAWXS --progress\"
-
-  --numeric-ids   Use --numeric-ids option when using rsync to use numeric
-                  user/group rather than uid/gid
 -------------------------------------
   --pull          Perform pull backup from remote server to local destination
                   --pull <remote directories>
@@ -229,7 +226,6 @@ WARNINGS:
     to preserve owner and group permissions.
   - Use caution to what user is performing backup. Changing user after inital
     snapshots were created can cause issues.
-  - Using --numeric-ids can help prevent the issues above.
   - Be careful when using --snap-amount and --snap-days together.
     Recommended to use one, but can use both if set properly.
 
@@ -376,10 +372,10 @@ ssh_remove_old_snapshots() {
 # ║ function - rsync (dryrun)                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
 rsync_dryrun() {
-  printf "%s\n[${program_title}] Performing dry-run of rsync for testing - Actual backup will NOT be performed"
+  printf '%s\n\n' "[${program_title}] Performing dry-run of rsync for testing - Actual backup will NOT be performed"
   rsync_options+=( --dry-run)
   perform_rsync
-  printf "%s\n[${program_title}] Finished performing dry-run of rsync for testing - Actual backup was NOT performed"
+  printf '%s\n\n' "[${program_title}] Finished performing dry-run of rsync for testing - Actual backup was NOT performed"
   exit 0
 }
 
@@ -505,10 +501,6 @@ main() {
     ;;
     --rsync-options)
       rsync_options=( "$2")
-      shift
-    ;;
-    --numeric-ids)
-      rsync_options+=( --numeric-ids)
       shift
     ;;
     --ssh)
