@@ -22,7 +22,7 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-version="0.5.1"
+version="0.6.0"
 program_title="${0##*/}"
 ## Add extra rsync options
 ## NOTICE: Do Not Use --delete Will cause consistency issues with incremental snapshots.
