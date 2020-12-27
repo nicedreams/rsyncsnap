@@ -5,7 +5,6 @@
 */lock
 */.lock
 */.thumbnails
-*/.git
 */.gvfs
 */.snapshot*
 */Trash
@@ -49,14 +48,10 @@
 ## CUSTOM EXCLUDES ##
 /usr/local/lib/
 */.snapraid.content*
-*/Downloads
-*/ISO*
-*/iso*
-*/backup*
-*/Backup*
-*/Sync
-*/Syncthing
-*/syncthing
+*/[Dd]ownloads
+*/[Ii][Ss][Oo]*
+*/[Ss]ync
+*/[Ss]yncthing
 */rsyncsnap*
 */.mozilla
 */rdiff-backup*
