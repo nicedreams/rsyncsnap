@@ -277,8 +277,8 @@ create_softlink() {
   msg "Creating new softlink to latest version backup at ${destination}"
   if [[ "${use_ssh}" == "Y" ]]; then
     # SSH - Create soft link of current date-time to backup just created -- DO NOT QUOTE VARIABLES IN SSH
-    if ! ssh "${ssh_options[@]}" "${ssh_server}" "rm -fv ${destination_dir}/${current_link} ; ln -sv ${destination_dir}/${backup_format} ${destination_dir}/${current_link}"; then
-      err "creating SSH softlink on ${ssh_server} to ${destination}/${current_link}"
+    if ! ssh "${ssh_options[@]}" "${ssh_server}" "rm -fv ${destination_dir}/${current_link} ; ln -sv ${destination_dir}/${backup_base}@${datetime} ${destination_dir}/${current_link}"; then
+      err "creating SSH softlink on ${ssh_server} to ${destination_dir}/${current_link}"
     fi
   else
     # Local - Create soft link of current date-time to backup just created
