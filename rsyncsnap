@@ -238,6 +238,13 @@ RESTORE:
 "
 }
 
+prechecks() {
+  # Is rsync installed?
+  if [[ $(command -v rsync &> /dev/null) ]] || [[ $(which rsync &> /dev/null) ]]; then
+    err "rsync program not found in path"
+  fi
+}
+
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ function - perform rsync                                                   ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
@@ -586,6 +593,11 @@ main() {
   if [[ -z "${source}" ]]; then printf "%s\nSource or include file list not entered!  Type $0 --help  for usage\n\n"; exit 1; fi
   if [[ -z "${destination_dir}" ]]; then printf "%s\nBackup destination not entered!  Type $0 --help  for usage\n\n"; exit 1; fi
 
+  # ╔════════════════════════════════════════════════════════════════════════════╗
+  # ║ PRE-CHECKS                                                                 ║
+  # ╚════════════════════════════════════════════════════════════════════════════╝
+  prechecks
+  
   # ╔════════════════════════════════════════════════════════════════════════════╗
   # ║ TRAP                                                                       ║
   # ╚════════════════════════════════════════════════════════════════════════════╝
