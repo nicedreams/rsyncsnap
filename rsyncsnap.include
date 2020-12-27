@@ -1,6 +1,6 @@
 ### rsyncsnap.include (EXAMPLE FILE - MODIFY FOR YOUR SETUP)
 ### ( Use Trailing Slashes /folder/
-/etc/
-/root/
 /home/
+/root/
+/etc/
 /usr/local/
