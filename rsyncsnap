@@ -22,23 +22,20 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-version="0.6.0"
-program_title="${0##*/}"
+version="0.6.1"
+filename="${0##*/}"  # Remove /full/path/ to to get only filename
+basename="${filename%.*}"  # Remove .ext from filename to get basename
+program_title="${basename}"  # Get program title from basename of file
 ## Add extra rsync options
 ## NOTICE: Do Not Use --delete Will cause consistency issues with incremental snapshots.
 ## NOTICE: Removing -r causes rsync not to transfer sub-directories even though -a is used for some reason.
 rsync_options=(-arvhxSR --numeric-ids)
 #rsync_options=(-avhxRHAWXS)
-## Add extra ssh options (Remove -q to have SSH verbose output.)
-ssh_options=(-n -q)
-## datetime formatting
-datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"
-## Temp log location
-logtmp="$(mktemp)" || logtmp="/tmp/rsyncsnap-${RANDOM}.tmp"
-## Source location removing trailing slash variable
-source="${1%/}"
-## Destination directory to store backups removing trailing slash from variable)
-destination="${2%/}"
+ssh_options=(-n -q)  # Add extra ssh options (Remove -q to have SSH verbose output.)
+datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"  # datetime formatting
+logtmp="$(mktemp)" || logtmp="/tmp/rsyncsnap-${RANDOM}.tmp"  # Temp log location
+source="${1%/}"  # Source location removing trailing slash variable
+destination="${2%/}"  # Destination directory to store backups removing trailing slash from variable)
 ## Set variables if (ssh) colon detected in destination
 if [[ "${destination}" = *:* ]]; then
   use_ssh="Y"
@@ -50,9 +47,9 @@ fi
 ## Name the destination backup archive based on directory base or include filename
 backup_base="${source[0]##*/}"
 backup_base="${backup_base%.*}"
-## Softlink name (add/remove . to beginning if want link hidden or visable in backup)
+# Softlink name (add/remove . to beginning if want link hidden or visable in backup)
 current_link="${backup_base}-current"
-## Set empty variables
+# Set empty variables
 error_warn=""
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
