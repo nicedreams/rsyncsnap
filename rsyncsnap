@@ -22,7 +22,7 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-version="1.0.0-alpha"
+version="1.0.2021-02-15-beta (https://github.com/nicedreams/rsyncsnap)"
 program_title="rsyncsnap"
 rsync_options=(-arvhxSR --numeric-ids)                           # Rsync command options (-avhxRHAWXS)
 ssh_options=(-oStrictHostKeyChecking=no -oLogLevel=QUIET -n -q)  # SSH command options (Remove -q to have SSH verbose output.)
@@ -115,7 +115,7 @@ PULL BACKUP FROM REMOTE SERVER USING SSH:
   
   rsyncsnap user@server /srv/backups/
             --pull \":/etc/ :/home/ :/usr/local/\" \\
-            --pull-sudo user \\
+            --pull-sudo user
 --------------------------------------------------------------------------------
 - Using single directory as source will backup single directory.
 - Using include file as source will backup directories listed in file.
@@ -252,7 +252,7 @@ command_options() {
     --test|--dry-run) rsync_dryrun ;;
     --debug) set -x ;;
     -h|--help) usage; exit 0 ;;
-    -V|--version) printf '%s\n' "${program_title} -- v${version}"; exit 0 ;;
+    -V|--version) printf "%srsyncsnap -- v${version}\n"; exit 0 ;;
     -?*) printf '%s \n' "Not a valid option: ${1}  [$0 --help]"; exit 1 ;;
   esac
   shift
