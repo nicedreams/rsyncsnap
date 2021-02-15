@@ -22,20 +22,17 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-version="0.6.1"
-filename="${0##*/}"  # Remove /full/path/ to to get only filename
-basename="${filename%.*}"  # Remove .ext from filename to get basename
-program_title="${basename}"  # Get program title from basename of file
-## Add extra rsync options
-## NOTICE: Do Not Use --delete Will cause consistency issues with incremental snapshots.
-## NOTICE: Removing -r causes rsync not to transfer sub-directories even though -a is used for some reason.
-rsync_options=(-arvhxSR --numeric-ids)
+version="1.0.0-alpha"
+filename="${0##*/}"                     # Remove /full/path/ to to get only filename
+basename="${filename%.*}"               # Remove .ext from filename to get basename
+program_title="${basename}"             # Get program title from basename of file
+rsync_options=(-arvhxSR --numeric-ids)  # Rsync command options
 #rsync_options=(-avhxRHAWXS)
-ssh_options=(-n -q)  # Add extra ssh options (Remove -q to have SSH verbose output.)
-datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"  # datetime formatting
-logtmp="$(mktemp)" || logtmp="/tmp/rsyncsnap-${RANDOM}.tmp"  # Temp log location
-source="${1%/}"  # Source location removing trailing slash variable
-destination="${2%/}"  # Destination directory to store backups removing trailing slash from variable)
+ssh_options=(-oStrictHostKeyChecking=no -oLogLevel=QUIET -n -q)  # SSH command options (Remove -q to have SSH verbose output.)
+datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"                  # datetime formatting
+logtmp="$(mktemp)" || logtmp="/tmp/rsyncsnap-${RANDOM}.tmp"      # Temp log location
+source="${1%/}"                         # Source location removing trailing slash variable
+destination="${2%/}"                    # Destination directory to store backups removing trailing slash from variable)
 ## Set variables if (ssh) colon detected in destination
 if [[ "${destination}" = *:* ]]; then
   use_ssh="Y"
@@ -49,66 +46,65 @@ backup_base="${source[0]##*/}"
 backup_base="${backup_base%.*}"
 # Softlink name (add/remove . to beginning if want link hidden or visable in backup)
 current_link="${backup_base}-current"
-# Set empty variables
-error_warn=""
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ FUNCTIONS                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
+msg()  { printf "%s[ INFO ] ${*}\n" 2>&1 | tee -a "${logtmp}" ; }
+warn() { printf "%s[ WARN ] ${*}\n" 2>&1 | tee -a "${logtmp}" ; }
+fail() { printf "%s[ FAIL ] ${*} - Exiting!\n" 2>&1 | tee -a "${logtmp}"; log_subject="ERROR backup off ${backup_base} to ${destination}"; cleanup; }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - msg/warn/err/succ log formatting                                ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
-msg() { printf '%s\n' "[${program_title}] ${*}" 2>&1 | tee -a "${logtmp}" ; }
-log() { printf '%s\n' "${*}" 2>&1 | tee -a "${logtmp}" ; }
-
-suc() {
-  log_subject[0]="[COMPLETED]"
-  log_subject[1]="(rsyncsnap)"
-  log_subject[2]="${*}"
-  printf '%s\n' "${log_subject[*]}" 2>&1 | tee -a "${logtmp}"
-}
-
-warn() {
-  log_subject[0]="[WARNING]"
-  log_subject[1]="(rsyncsnap)"
-  log_subject[2]="${*}"
-  printf '%s\n' "${log_subject[*]}" 2>&1 | tee -a "${logtmp}"
-}
-
-err() {
-  log_subject[0]="[ERROR]"
-  log_subject[1]="(rsyncsnap)"
-  log_subject[2]="${*}"
-  error_warn="Y"
-  log_errors
-  printf '%s\n' "${log_subject[*]}" 2>&1 | tee -a "${logtmp}"
-}
-
-log_line_single() { printf '%s\n' "-------------------------------------------------------------------------------" 2>&1 | tee -a "${logtmp}" ; }
-log_line_double() { printf '%s\n' "===============================================================================" 2>&1 | tee -a "${logtmp}" ; }
-
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - usage                                                           ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
 usage() {
-echo "
--------------------------------------------------------------------------------
+printf '%s \n' "-------------------------------------------------------------------------------
 rsyncsnap
-
 Uses rsync to create incremental hard link snapshots of directories.
 
-https://github.com/nicedreams/rsyncsnap
--------------------------------------------------------------------------------
-- Performs push backup from local to remote server by default.
-- To perform pull backup from remote server to local use
-  --pull and --sudo options.
---------------------------------------------------------------------------------
 USAGE:
 
-  rsyncsnap  <source>  <destination>  <options>
+  rsyncsnap  <source>  <destination>  [options]
 
-  # Using include file (rsyncsnap.include)
+  <source>        Full path and filename of directory or include file
+  <destination>   Where to store backups
+  <options>       Listed below
+--------------------------------------------------------------------------------
+OPTIONS:
+
+-s --snapshots      Amount of snapshots to keep: --snapshots 30  (Keep 30 total snapshots)
+
+-d --days           How many days to keep snapshots: --days 45  (Keep 45 days of snapshots)
+                    *Option not recommended when using SSH for destination
+
+-e --exclude        Path of exclude file: --exclude /home/user/rsyncsnap.exclude
+-------------------------------------
+-l --logfile        Directory and filename location to create/append log file: --logfile /home/user/rsyncsnap.log
+
+-m --mail --email   Send email using mail command: --mail user@domain.com  //  --mail root
+                  
+--syslog            Send status to syslog using logger
+-------------------------------------
+--rsync-options     Default: ${rsync_options[*]}
+                    Use custom rsync options instead of built-in default.
+                    **Must Use \"quotes\"
+                    --rsync-options \"-axHAWXS --numeric-ids\"
+-------------------------------------
+--pull              Perform pull backup from remote server to local destination
+                    Directories must have : <colon> before their names
+                    **Must Use \"quotes\"
+                    --pull \"<remote directories>\"
+                    --pull \":/etc/ :/home/ :/usr/local/\"
+
+--pull-sudo         Use sudo option with ssh:
+                    **Must Use \"quotes\"
+                    --rsync-path=\"sudo user\"
+-------------------------------------
+-v | --verbose      Display more verbose output
+--dryrun            Perform rsync using --dry-run to test backup.
+--debug             Use set-x bash option when running script.
+-V | --version      Version information
+-h | --help         Print this usage information.
+--------------------------------------------------------------------------------
+EXAMPLES:
+
   rsyncsnap /root/rsyncsnap.include /mnt/backups \\
             --exclude /root/rsyncsnap.exclude \\
             --snapshots 30 \\
@@ -117,187 +113,85 @@ USAGE:
             --mail user@domain \\
             --syslog
 
-  # Using single source directory (/home/user)
-  rsyncsnap /home/user /mnt/backups \\
-            --days 60 \\
-            --mail user@domain
+  rsyncsnap /home/user /mnt/backups
+  rsyncsnap /root/rsyncsnap.include user@server:/home/user/backups
 
-  # Using include file to SSH destination (user@server:/)
-  rsyncsnap /root/rsyncsnap.include user@server:/home/user/backups \\
-            --exclude /root/rsyncsnap.exclude \\
-            --snapshots 30 \\
-            --logfile /var/log/rsyncsnap.log
-            
-  # Performing pull backup from remote server to local directory          
   rsyncsnap user@server /srv/backups/
             --pull \":/etc/ :/home/ :/usr/local/\" \\
-            --sudo rsync \\
-            --exclude /home/user/rsyncsnap.exclude \\
-            --snapshots 14 \\
-            --logfile /var/log/rsyncsnap-pull.log
-
-  <source>        Full path and filename of directory or rsyncsnap.include file
-  <destination>   Where to store backups
-  <options>       Listed below
+            --pull-sudo user \\
 --------------------------------------------------------------------------------
 - Using single directory as source will backup single directory.
 - Using include file as source will backup directories listed in file.
 - Can use multiple source directories within \"quotes\"
   \"/home/user/ /etc/ /usr/local/bin/\"
 --------------------------------------------------------------------------------
-OPTIONS:
-
--s --snapshots      Amount of snapshots to keep.
-                    --snapshots 30  (Keep 30 total snapshots)
-
--d --days           How many days to keep snapshots.
-                    --days 45  (Keep 45 days of snapshots)
-                    **Not recommended when using SSH for destination**
-
--e --exclude        Path of exclude file
-                    --exclude /home/user/rsyncsnap.exclude
--------------------------------------
--l --logfile        Create/Append log to single file
-
--m --mail --email   Send email using mail command
-                    --mail user@domain.com OR --mail root
-                  
---syslog            Send status to syslog using logger
--------------------------------------
---rsync-options     Default: ${rsync_options[*]}                                                                                                                                                                
-                    Use custom rsync options instead of built-in default.
-                    **Must Use \"quotes\"
-                    --rsync-options \"-axHAWXS --progress\"
--------------------------------------
---pull              Perform pull backup from remote server to local destination
-                      --pull <remote directories>
-                      --pull \":/etc/ :/home/ :/usr/local/\"
-
---sudo              Use sudo on remote server to elevate permissions while rsync
-                      --rsync-path=\"sudo user\"
--------------------------------------
---ssh-options       Include options for SSH
-                      --ssh-options \"-p 22 -i /home/user/.ssh/keyfile\"
-
---ssh               Force using SSH as destination. Use if having issues.
--------------------------------------
---dryrun            Perform rsync version backup using --dry-run to test backup.
-                    No actual backup will be performed.
-                    **Use without -logfile --syslog --email options.**
-
---debug             Use set-x bash option when running script.
-
--h | --help         Print this usage information.
---------------------------------------------------------------------------------
-NAME OF BACKUP:
-- Name of backup is set using first part of include filename or the source
-  directory name if doing single directory backup.
-- Can name include file and extension anything and extension is not required.
-- Recommend using rsyncsnap as filename when using includes file to keep track
-  of how backup was performed.
-
 SSH:
 - Use --ssh-options to add regular SSH arguments to command
   --ssh-options \"-p 22 -i /home/user/.ssh/key\"
-- Script will preserve hardlinks to remote system as long as using filesystem
-  that supports hardlinks like ext4, btrfs, etc.
-- Recommended to use ssh key authentication for cron jobs using
-  ~/.ssh/config file.
-- Need to be able to login to remote server as root when backing up /etc or
-  other files a normal user does not have access to or will get errors.
-- Recommend modify remote server /etc/sshd_config with:
-  PermitRootLogin without-password
-
-SNAPSHOTS:
-- Can keep snapshots by amount and/or by days using either one or both of the
-  below options.
-- Excessive amount or older days of snapshots will be deleted.
-- If no options are used then no snapshots will be deleted.
-- Deleting by days is based on folder timestamps and system time.
-- Recommend not using --days when not sure if remote system (SSH) time
-  or modification times are accurate.  Use --limit-amount instead.
-
-WARNINGS:
-- Changing permissions on destination directories after a snapshot backup was
-  performed can cause issues during next snapshot run since rsync is set
-  to preserve owner and group permissions.
-- Use caution to what user is performing backup. Changing user after inital
-  snapshots were created can cause issues.
-- Be careful when using --snapshots and --days together.
-  Recommended to use one, but can use both if set properly.
+- Recommended using ssh key authentication for jobs using: ~/.ssh/config file
 
 RESTORE:
 - To restore files from backup, manually copy files from backup date/time
-  destination directory to original or alternate location.
-  
+  in destination directory to original or alternate location.
 --------------------------------------------------------------------------------
-
 "
 }
 
-prechecks() {
-  # Is rsync installed?
-  if [[ $(command -v rsync &> /dev/null) ]] || [[ $(which rsync &> /dev/null) ]]; then
-    err "rsync program not found in path"
-  fi
+prechecks_exit() {
+  if [[ $(command -v rsync &> /dev/null) ]]; then printf '%s \n' "rsync program not found"; fi
+  if [[ ! "${source}" ]]; then printf '%s \n' "Source or include file list not entered!"; exit 1; fi
+  if [[ ! "${destination_dir}" ]]; then printf '%s \n' "Backup destination not entered!"; exit 1; fi
 }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - perform rsync                                                   ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
 perform_rsync() {
   # Create command based on if include file, directory or pull backup
-  if [[ ${pull_backup} == "Y" ]]; then source=("${source[@]}""${pull_sources[@]}"); elif [[ -d "${source}" ]]; then source=("${source[@]}"); else source=(--files-from="${source[@]}" /); fi
-  rsync_cmd=(rsync 
-    "${rsync_options[@]}" 
-    --log-file="${logtmp}" 
-    --exclude-from="${exclude_file}" 
-    --exclude="${destination_dir}" 
-    --link-dest="${destination_dir}"/"${current_link}"/ 
-    "${sudo_command[@]}" 
+  if [[ "${backup_type}" == "PULL" ]]; then source=("${source[@]}""${pull_sources[@]}")
+    elif [[ -d "${source}" ]]; then source=("${source[@]}")
+    elif [[ -f "${source}" ]]; then source=(--files-from="${source[@]}" /); fi
+
+  rsync_cmd=(rsync
+    "${rsync_options[@]}"
+    --log-file="${logtmp}"
+    --exclude-from="${exclude_file}"
+    --exclude="${destination_dir}"
+    --link-dest="${destination_dir}"/"${current_link}"/
+    "${sudo_command[@]}"
     "${source[@]}"
     "${destination}"/"${backup_base}"@"${datetime}"/)
 
   msg "Performing rsync version backup to ${destination}"
-  log " ---- ---- ---- ---- ---- Begin Rsync Log ---- ---- ---- ---- ----"
+  msg " ---- ---- ---- ---- ---- Begin Rsync Log ---- ---- ---- ---- ----"
   "${rsync_cmd[@]}"
+  msg " ---- ---- ---- ---- ---- End Rsync Log ---- ---- ---- ---- ----"
   return_code="$?"
   if [[ "${return_code}" == "23" ]]; then
     warn "(rsync code: ${return_code}) partial rsync transfer due to error for ${backup_base} to ${destination}"
   elif [[ "${return_code}" == "11" ]]; then
-    err "(rsync code: ${return_code}) no such file or directory: ${destination}"
+    fail "(rsync code: ${return_code}) no such file or directory: ${destination}"
   elif [[ "${return_code}" -ne "0" ]]; then
-    err "version backup during (rsync code: ${return_code}) for ${backup_base} to ${destination}"
-  else
-    suc "version backup for ${backup_base} to ${destination}"
+    fail "version backup during (rsync code: ${return_code}) for ${backup_base} to ${destination}"
+  elif [[ "${return_code}" == "0" ]]; then
+    msg "Completed rsync version backup off ${backup_base} to ${destination}"
+    log_subject="COMPLETED backup off ${backup_base} to ${destination}"
   fi
-  log " ---- ---- ---- ---- ---- End Rsync Log ---- ---- ---- ---- ----"
 }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - create softlink                                                 ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
 create_softlink() {
   msg "Creating new softlink to latest version backup at ${destination}"
   if [[ "${use_ssh}" == "Y" ]]; then
     # SSH - Create soft link of current date-time to backup just created -- DO NOT QUOTE VARIABLES IN SSH
-    if ! ssh "${ssh_options[@]}" "${ssh_server}" "rm -fv ${destination_dir}/${current_link} ; ln -sv ${destination_dir}/${backup_base}@${datetime} ${destination_dir}/${current_link}"; then
+    if ! ssh "${ssh_options[@]}" "${ssh_server}" "rm -f ${destination_dir}/${current_link} ; ln -s ${destination_dir}/${backup_base}@${datetime} ${destination_dir}/${current_link}"; then
       err "creating SSH softlink on ${ssh_server} to ${destination_dir}/${current_link}"
     fi
   else
     # Local - Create soft link of current date-time to backup just created
-    rm -fv "${destination_dir}"/"${current_link}"
-    if ! ln -sv "${destination_dir}"/"${backup_base}"@"${datetime}" "${destination}"/"${current_link}"; then
-      err "creating LOCAL softlink to ${destination}/${current_link}"
-    fi
+    rm -f "${destination_dir}"/"${current_link}"
+    if ! ln -s "${destination_dir}"/"${backup_base}"@"${datetime}" "${destination}"/"${current_link}"; then err "creating LOCAL softlink to ${destination}/${current_link}"; fi
   fi
 }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - remove old snapshot                                             ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
 remove_old_snapshots() {
-  if [[ ! -d "${destination_dir}/${backup_format}*" ]]; then
+  if [[ -d "${destination_dir}"/"${current_link}" ]]; then
     # --- Keep snapshots by amount
     if [[ -n "${snapshot_amount}" ]]; then
       # Get number of backups in destination directory
@@ -324,17 +218,14 @@ remove_old_snapshots() {
       fi
     fi
   else
-    err "Destination directory not found at ${destination} -- Unable to remove old snapshots!"
+    warn "Destination directory not found at ${destination} -- Unable to remove old snapshots!"
   fi
 
   # List Snapshots
-  msg "Listing backup snapshots at ${destination}"
-  log "$(ls -d1 "${destination_dir}"/"${backup_base}"@*)"
+  if [[ "${verbose}" == "Y" ]]; then msg "Listing backup snapshots at ${destination}"; fi
+  if [[ "${verbose}" == "Y" ]]; then printf '%s \n' "$(ls -d1 ${destination_dir}/${backup_base}@*)" 2>&1 | tee -a "${logtmp}"; fi
 }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - remove old snapshots (ssh)                                      ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
 ssh_remove_old_snapshots() {
   # Keep snapshots by amount -- DO NOT QUOTE VARIABLES IN SSH
   if [[ -n "${snapshot_amount}" ]]; then
@@ -352,8 +243,8 @@ ssh_remove_old_snapshots() {
           echo "Removing older snapshots amount from ${destination}"
         fi
         # List Snapshots
-        echo "[${program_title}] Listing backup snapshots at ${destination}"
-        ls -d1 ${destination_dir}/${backup_base}@*
+        #if [[ ${verbose} == "Y" ]]; then echo "[${program_title}] Listing backup snapshots at ${destination}"; fi
+        #if [[ ${verbose} == "Y" ]]; then ls -d1 ${destination_dir}/${backup_base}@*; fi
       fi
     fi
     "
@@ -371,9 +262,6 @@ ssh_remove_old_snapshots() {
   fi
 }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - rsync (dryrun)                                                  ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
 rsync_dryrun() {
   printf '%s\n\n' "[${program_title}] Performing dry-run of rsync for testing - Actual backup will NOT be performed"
   rsync_options+=( --dry-run)
@@ -382,277 +270,56 @@ rsync_dryrun() {
   exit 0
 }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - send functions                                                  ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
-
-send_mail() {
-  msg "Sending mail to ${mail_address}"
-  printf '%s\n' "[${program_title}] (END) -- $(printf '%(%A %Y-%m-%d %H:%M:%S)T' -1)" >> "${logtmp}"
-  if ! mail -s "${log_subject[*]}" "${mail_address}" < "${logtmp}"
-  then
-    warn "Issue when sending mail"
-  fi
-}
-
-send_syslog() {
-  msg "Sending message to syslog"
-  if ! logger -s -t rsyncsnap "${log_subject[0]} ${log_subject[2]}" > /dev/null 2>&1
-  then
-    warn "Issue when sending message via logger"
-  fi
-}
-
-send_remove_old_logs() {
-  msg "Searching for logs to remove over ${log_limit_days} days old in ${ldir}:"
-  find "${ldir}"/"${backup_base}"-*.log -maxdepth 1 -mtime +"${log_limit_days}" -exec rm -vf {} \;
-}
-
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - create logfile                                                  ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
-create_logfile() {
-  ## Create log file option
-  if [[ -n "${lfile}" ]]; then msg "Appending log to: ${logfile_location}"; fi
-  if [[ -n "${ldir}" ]]; then msg "Created log: ${logfile_location}"; fi
-  printf '%s\n' "[${program_title}] (END) -- $(printf '%(%A %Y-%m-%d %H:%M:%S)T' -1)" >> "${logtmp}"
-  cat "${logtmp}" >> "${logfile_location}" || err "Creating log in: ${logfile_location}"
-}
-
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - cleanup                                                         ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
 cleanup() {
-  # Cleanup temp logfile
+  if [[ "${logfile}" ]]; then printf "\n\n" >> "${logfile}"; if ! cat "${logtmp}" >> "${logfile}"; then warn "Issues creating/updating logfile"; fi; fi
   rm -f "${logtmp}"
-}
-
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - trap exit                                                       ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
-trap_exit() {
-  # Set mail subject
-  err "Ended forceably and trapped"
-  error_warn="Y"
-  # Create logfile if enabled
-  create_logfile
-  # Send mail if enabled
-  send_mail
-  # Cleanup ${logtmp}
-  cleanup
   exit 1
 }
 
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - log errors                                                      ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
-log_errors() {
-  error_warn="Y"
-  msg "  ---- ---- ---- ---- ---- End Rsync Log ---- ---- ---- ---- ----"
-
-  log_line_single
-  msg "${log_subject[*]}"
-  log_line_single
-
-  if [[ "${sendmail}" == "Y" ]]; then send_mail; fi
-  if [[ -n "${lfile}" ]] || [[ -n "${ldir}" ]]; then create_logfile; fi
-  msg "(END) -- $(printf '%(%A %Y-%m-%d %H:%M:%S)T' -1)"
-  log_line_double
-  #cleanup
-  exit 1
-}
-
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - helpmsg                                                         ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
-helpmsg() {
-  helpformat[0]="[${program_title}]"
-  helpformat[1]="$1"
-  helpformat[2]="$2"
-  printf "%s\n${helpformat[0]}\n  Usage: $0 ${helpformat[1]}\n         $0 ${helpformat[2]}\n\n"
-  exit 0
-}
-
-
-# ╔════════════════════════════════════════════════════════════════════════════╗
-# ║ function - main                                                            ║
-# ╚════════════════════════════════════════════════════════════════════════════╝
-main() {
-  # ╔════════════════════════════════════════════════════════════════════════════╗
-  # ║ CASE OPTIONS                                                               ║
-  # ╚════════════════════════════════════════════════════════════════════════════╝
+command_options() {
   # Multiple Argument Selection
-  while [[ "$#" -gt 0 ]]
-  do  
+  while [[ "$#" -gt 0 ]]; do  
   option="$1"
   case "$option" in
-  # OPTIONS ---------------------------------------------------------
-    -e|--exclude|--excludes)
-      exclude_file="${2%/}" # Remove trailing slashes
-      shift
-      if [[ ! -f "${exclude_file}" ]] || [[ "${exclude_file}" == -* ]]; then helpmsg "ERROR Exclude list file not found!" "Type $0 --help for usage"; fi
-    ;;
-    -s|--snapshots|--snapshot)
-      snapshot_amount="$2"
-      shift
-      if [[ -z "${snapshot_amount}" ]] || [[ "${snapshot_amount}" == -* ]]; then helpmsg "--snapshots <number>" "--snapshots 15"; fi
-    ;;
-    -d|--days)
-      snapshot_amount_days="$2"
-      shift
-      if [[ -z "${snapshot_amount_days}" ]] || [[ "${snapshot_amount_days}" == -* ]]; then helpmsg "--days <number>" "--days 30"; fi
-    ;;
-    --rsync-options)
-      rsync_options=( "$2")
-      shift
-    ;;
-    --ssh)
-      use_ssh="Y"
-    ;;
-    --ssh-options)
-      extra_ssh_options=( "$2")
-      # do not quote ssh_options variable
-      ssh_options+=( ${extra_ssh_options[@]})
-      rsync_options+=( -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${extra_ssh_options[@]}")
-      shift
-    ;;
-    --sudo)
-      sudo_user="$2"
-      sudo_command=(--rsync-path="sudo ${sudo_user}")
-      use_sudo="Y"
-      if [[ -z "${sudo_user}" ]] || [[ "${sudo_user}" == -* ]]; then helpmsg "--sudo <username>" "--sudo rsync"; fi
-      shift
-    ;;
-    --pull)
-      pull_sources=($2)
-      pull_backup="Y"
-      use_ssh="N"
-      if [[ -z "${pull_sources}" ]] || [[ "${pull_sources}" == -* ]]; then
-        helpmsg "--pull <sources>" "--pull \":/etc/ :/home/ :/usr/local/\""
-        printf "NOTICE: Use \"quotes\"\nNOTICE: Use : before directories \":/etc/ :/home/ :/var/\" \n\n"
-        exit 0
-      fi
-      if [[ "${source}" = *:* ]] || [[ "${use_ssh}" == "Y" ]]; then
-        helpmsg "When using --pull it must NOT be used with a folder destination (user@server:/destination)" "--pull"
-      fi
-      shift
-    ;;
-  # SEND MESSAGES ----------------------------------------------------
-    -l|--logfile|--log)
-      lfile="$2"
-      shift
-      if [[ -z "${lfile}" ]] || [[ "${lfile}" == -* ]]; then
-        helpmsg "--logfile </path/to/file.log>" "--logfile /var/log/mybackup.log"
-      fi
-      logfile_location="${lfile}"
-      msg "-- $(printf '%(%A %Y-%m-%d %H:%M:%S)T' -1)" >> "${logfile_location}"
-    ;;
-    -m|--mail|--email)
-      mail_address="$2"
-      shift
-      if [[ -z "${mail_address}" ]] || [[ "${mail_address}" == -* ]]; then
-        helpmsg "--mail <email_address>" "--mail user@domain"
-      fi
-      sendmail="Y"
-    ;;
-    --syslog)
-      sendsyslog="Y"
-    ;;
-  # TESTING ---------------------------------------------------
-    --test|--dry-run)
-      rsync_dryrun
-    ;;
-    --debug)
-      set -x
-    ;;
-  # ------------------------------------------------------------
-    -h|--help)
-      usage
-      exit 0
-    ;;
-  # ------------------------------------------------------------
-    -v|-V|--version)
-      printf '%s\n' "${program_title} -- v${version}"
-      exit 0
-    ;;
-# ------------------------------------------------------------
-    -*)
-      err "Unknown Option: '${option}' -- Type '$0 --help' for usage information"
-      exit 0
-    ;;
+    -e|--exclude|--excludes) exclude_file="${2%/}" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
+    -s|--snapshot|--snapshots) if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; snapshot_amount="$2"; shift ;;
+    -d|--days) snapshot_amount_days="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
+    --rsync-options) rsync_options=( "$2") ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
+    --pull-sudo) sudo_user="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; sudo_command=(--rsync-path="sudo ${sudo_user}"); shift ;;
+    --pull) pull_sources=($2) ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; backup_type="PULL"; use_ssh="N"; shift ;;
+    -l|--logfile) logfile="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
+    -m|--mail|--email) mail_address="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
+    --syslog) sendsyslog="Y" ;;
+    -v|--verbose) verbose="Y" ;;
+    --test|--dry-run) rsync_dryrun ;;
+    --debug) set -x ;;
+    -h|--help) usage; exit 0 ;;
+    -V|--version) printf '%s\n' "${program_title} -- v${version}"; exit 0 ;;
+    -?*) printf '%s \n' "Not a valid option: ${1}  [$0 --help]"; exit 1 ;;
   esac
   shift
   done
+}
 
-  # ╔════════════════════════════════════════════════════════════════════════════╗
-  # ║ ERROR CHECKING INPUT                                                       ║
-  # ╚════════════════════════════════════════════════════════════════════════════╝
-  if [[ -z "${source}" ]]; then printf "%s\nSource or include file list not entered!  Type $0 --help  for usage\n\n"; exit 1; fi
-  if [[ -z "${destination_dir}" ]]; then printf "%s\nBackup destination not entered!  Type $0 --help  for usage\n\n"; exit 1; fi
-
-  # ╔════════════════════════════════════════════════════════════════════════════╗
-  # ║ PRE-CHECKS                                                                 ║
-  # ╚════════════════════════════════════════════════════════════════════════════╝
-  prechecks
-  
-  # ╔════════════════════════════════════════════════════════════════════════════╗
-  # ║ TRAP                                                                       ║
-  # ╚════════════════════════════════════════════════════════════════════════════╝
-  trap trap_exit 2 SIGHUP SIGINT SIGQUIT SIGABRT SIGTERM
-  
-  # ╔════════════════════════════════════════════════════════════════════════════╗
-  # ║ RUN ENTIRE BACKUP PROCESS WITH LOGGING                                     ║
-  # ╚════════════════════════════════════════════════════════════════════════════╝
+main() {
+  command_options "$@"
+  prechecks_exit
+  trap cleanup 2 SIGHUP SIGINT SIGQUIT SIGABRT SIGTERM
+  # -------------------------------------------------------------
   start=$(date +%s)
-  # Log header start
-  log_line_double
-  msg "(START) -- $(printf '%(%A %Y-%m-%d %H:%M:%S)T' -1)"
-  if [[ "${pull_backup}" == "Y" ]]; then msg "Pulling backup from ${source[@]} to ${destination}"; else msg "Pushing backup from ${source[@]} to ${destination}"; fi
-
-  # Run main rsync function
+  msg "(START) rsyncsnap hardlink version backup"
+  if [[ "${backup_type}" == "PULL" ]]; then msg "[PULLING] ${source[*]} to ${destination}"; else msg "[PUSHING] ${source[*]} to ${destination}"; fi
+  msg "------------------------------------------------------------------------"
   perform_rsync
-  
-  # Run create softlink function if no errors during rsync
-  if [[ ${error_warn} != "Y" ]]; then create_softlink; fi
-
-  # Perform other tasks (local or ssh)
-  if [[ "${use_ssh}" == "Y" ]] || [[ "${destination_dir}" = *:* ]]; then
-    ## If SSH
-    ssh_remove_old_snapshots
-    #list_snapshots
-  else
-    ## If LOCAL
-    remove_old_snapshots
-    #list_snapshots
-  fi
+  create_softlink
+  if [[ "${use_ssh}" == "Y" ]] || [[ "${destination_dir}" = *:* ]]; then ssh_remove_old_snapshots; else remove_old_snapshots; fi  # Perform other tasks (local or ssh)
   finish=$(date +%s)
-
-  ## Print log status to terminal
-  log_line_single
-  log "${log_subject[*]}"
-  log_line_single
-  
-  msg "Total time: $(( ($finish-$start) / 60 )) minutes, $(( ($finish-$start) % 60 )) seconds"
-
-  if [[ "${pull_backup}" == "Y" ]]; then msg "Performed pull backup from ${source[@]} to ${destination}"; fi
-  if [[ "${use_sudo}" == "Y" ]]; then msg "Used (sudo) during rsync as user: ${sudo_user}"; fi
-
-  if [[ "${sendmail}" == "Y" ]]; then send_mail; fi
-  if [[ "${sendsyslog}" == "Y" ]]; then send_syslog; fi
-
-  # Show if using --log-file
-  if [[ -n "${lfile}" ]]; then create_logfile; fi
-
-  # Log header end
-  msg "(END) -- $(printf '%(%A %Y-%m-%d %H:%M:%S)T' -1)"
-  log_line_double
-  
-  # ╔════════════════════════════════════════════════════════════════════════════╗
-  # ║ cleanup for end of script                                                  ║
-  # ╚════════════════════════════════════════════════════════════════════════════╝
+  msg "------------------------------------------------------------------------"
+  msg "[ Total Time :] $(( (${finish}-${start}) / 60 )) minutes, $(( (${finish}-${start}) % 60 )) seconds"
+  msg "(END) rsyncsnap hardlink version backup"
+  if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject[0]}" "${log_subject[2]}" > /dev/null 2>&1; then warn="Issue sending message to syslog via logger"; fi; fi
+  if [[ "${mail_address}" ]]; then if ! mail -s "${log_subject[*]}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to: ${mail_address}"; fi; fi
   cleanup
-  printf "\n"
 }
 
 main "$@"
-
