@@ -135,6 +135,8 @@ PULL BACKUP FROM REMOTE SERVER USING SSH:
 - Can use multiple source directories within "quotes"
   "/home/user /etc /usr/local/bin"
 - Symlink to -current is relative so can move backup directory without issues.
+- Best to use server configured in ~/.ssh/config with password-less ssh keys
+  when using backups with ssh.
 --------------------------------------------------------------------------------
 NAME OF BACKUP:
 - Backup is named based on include filename or the source directory name
