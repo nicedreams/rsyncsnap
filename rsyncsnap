@@ -57,43 +57,44 @@ USAGE:
 --------------------------------------------------------------------------------
 OPTIONS:
 
--s --snapshots      Amount of snapshots to keep:
-                    --snapshots 30  (Keep 30 total snapshots)
+-s --snapshots   Amount of snapshots to keep:
+                 --snapshots 30  (Keep 30 total snapshots)
 
--d --days           How many days to keep snapshots:
-                    --days 45  (Keep 45 days of snapshots)
-                    *Does not work when using remote/ssh as destination
+-d --days        How many days to keep snapshots:
+                 --days 45  (Keep 45 days of snapshots)
+                 *Does not work when using remote/ssh as destination
 
--e --exclude        Path of exclude file: --exclude /home/user/rsyncsnap.exclude
+-e --exclude     Path of exclude file: --exclude /home/user/rsyncsnap.exclude
 -------------------------------------
--l --logfile        Directory and filename location to create/append log file:
-                    --logfile /home/user/rsyncsnap.log
+-l --logfile     Directory and filename location to create/append log file:
+                 --logfile /home/user/rsyncsnap.log
 
--m --mail --email   Send email using mail command:
-                    --mail user@domain.com // --mail root
+-m --mail        Send email using mail command:
+--email          --mail user@domain.com // --mail root
                   
---syslog            Send status to syslog using logger
+--syslog         Send status to syslog using logger
 -------------------------------------
---rsync-options     Default: ${rsync_options[*]}
-                    Use custom rsync options instead of built-in default.
-                    **Must Use \"quotes\"
-                    --rsync-options \"-avhxRHAWXS --numeric-ids\"
+-ro              Default: ${rsync_options[*]}
+--rsync-options  Use custom rsync options instead of built-in default.
+                 **Must Use \"quotes\"
+                 --rsync-options \"-avhxRHAWXS --numeric-ids\" (Copy all permissions)
+                 --rsync-options \"-rptgoDvhxSR --numeric-ids\" (No copy symlinks)
 -------------------------------------
---pull              Perform pull backup from remote server to local destination
-                    Directories must have : <colon> before their names
-                    **Must Use \"quotes\"
-                    --pull \"<remote directories>\"
-                    --pull \":/etc/ :/home/ :/usr/local/\"
+--pull           Perform pull backup from remote server to local destination
+                 Directories must have : <colon> before their names
+                 Must Use \"quote string of arguments\"
+                 --pull \"<remote directories>\"
+                 --pull \":/etc/ :/home/ :/usr/local/\"
 
---pull-sudo         Use sudo option with ssh:
-                    **Must Use \"quotes\"
-                    --rsync-path=\"sudo user\"
+--pull-sudo      Use sudo option with ssh:
+                 **Must Use \"quotes\"
+                 --rsync-path=\"sudo user\"
 -------------------------------------
--v | --verbose      Display more verbose output like snapshot amount information
---dryrun            Perform rsync using --dry-run to test backup.
---debug             Use set-x bash option when running script.
--V | --version      Version information
--h | --help         Print this usage information.
+-v | --verbose   Display more verbose output like snapshot amount information
+--dryrun         Perform rsync using --dry-run to test backup.
+--debug          Use set-x bash option when running script.
+-V | --version   Version information
+-h | --help      Print this usage information.
 --------------------------------------------------------------------------------
 EXAMPLES:
 
@@ -121,6 +122,7 @@ PULL BACKUP FROM REMOTE SERVER USING SSH:
 - Using include file as source will backup directories listed in file.
 - Can use multiple source directories within \"quotes\"
   \"/home/user /etc /usr/local/bin\"
+- Symlink to -current is relative so can move backup directory without issues.
 --------------------------------------------------------------------------------
 NAME OF BACKUP:
 - Backup is named based on include filename or the source directory name
@@ -243,7 +245,7 @@ command_options() {
     -e|--exclude|--excludes) exclude_file="${2%/}" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     -s|--snapshot|--snapshots) if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; snapshot_amount="$2"; shift ;;
     -d|--days) snapshot_amount_days="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
-    --rsync-options) rsync_options=( "$2") ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
+    -ro|--rsync-options) rsync_options=($2) ; if [[ ! "${2}" ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     --pull-sudo) sudo_user="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; sudo_command=(--rsync-path="sudo ${sudo_user}"); shift ;;
     --pull) pull_sources=($2) ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; backup_type="PULL"; use_ssh="N"; shift ;; # Do not quote pull_sources=($2)
     -l|--logfile) logfile="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
