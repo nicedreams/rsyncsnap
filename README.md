@@ -1,6 +1,6 @@
 # rsyncsnap - Rsync Incremental Backups
 
-Bash script that uses rsync to create multiple incremental hard link snapshots of single/multiple directories to local/remote destination.
+Bash script that uses rsync to create incremental hard link snapshots of directories to local or remote destination.
 
 ----------------------------------------------------------------------------------
 
@@ -9,8 +9,8 @@ Bash script that uses rsync to create multiple incremental hard link snapshots o
 - Creates date/time stamped folders every backup.
 - Can perform push or pull backups.
 - Can create and store backup snapshots on local machine or remote server using ssh.
-- Snapshots are Samba `vfs_shadow_copy2` compatible with Windows Previous Versions.
-- Uses updated soft link to most current backup within backup directory to keep track of previous snapshot.
+- Snapshots are Samba `vfs_shadow_copy2` compatible with Microsoft Windows Previous Versions.
+- Uses updated relative soft link to most current backup within backup directory to keep track of previous snapshot.
 - Using single directory as source will backup single directory.
 - Using include file as source will backup multiple directories listed in file.
 - The use of .includes file is for adding single or multiple sources to backup.  Can use any name and file and extension.
@@ -21,20 +21,20 @@ Bash script that uses rsync to create multiple incremental hard link snapshots o
 ## Warnings
 - Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup when creating hardlinks.
 - Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed.
-- Changing permissions on destination directories after a snapshot backup was performed can cause issues during next snapshot run since rsync is set to preserve owner and group permissions.  It is best to not change anything at the destination and consider it read-only.
-- Be careful when using --snapshots and --days together, as --days may remove more snapshots than planned if not planned properly.
+- Making any modifications to permissions, directories or files on destination directories after a snapshot backup was performed can cause issues during next snapshot run.  It is best to not change anything at the destination and consider it **read-only**.
+- Be careful when using `--snapshots` and `--days` together, as `--days` may remove more snapshots than planned if not planned properly.  `--days` option will not work with remote ssh destinations.
 
 ## Installation
 
-Copy rsyncsnap file to /usr/local/bin or any other directory and give execute permissions.
+Copy rsyncsnap file to `/usr/local/bin` or any other directory and give execute permissions.
 ```
 cp rsyncsnap /usr/local/bin/rsyncsnap
 chmod +x /usr/local/bin/rsyncsnap
-
-# Copy rsyncsnap.include and rsyncsnap.exclude files to /root or directory of your choosing or create your own includes file.
 ```
 
-Create rsyncsnap.include and rsyncsnap.exclude files.  Use the example files to help you with your own includes and excludes.  Follows normal rsync patterns.  Excludes creation is optional if not needed.
+Copy `rsyncsnap.include` and `rsyncsnap.exclude` files to `/root` or another directory of your choosing or create your own includes file.
+
+Create `rsyncsnap.include` and `rsyncsnap.exclude files`.  Use the example files to help you with your own includes and excludes.  Follows normal rsync patterns.  Excludes creation is optional if not needed.
 ```
 vi /root/rsyncsnap.include
 vi /root/rsyncsnap.exclude
@@ -69,43 +69,44 @@ USAGE:
 --------------------------------------------------------------------------------
 OPTIONS:
 
--s --snapshots      Amount of snapshots to keep:
-                    --snapshots 30  (Keep 30 total snapshots)
+-s --snapshots   Amount of snapshots to keep:
+                 --snapshots 30  (Keep 30 total snapshots)
 
--d --days           How many days to keep snapshots:
-                    --days 45  (Keep 45 days of snapshots)
-                    *Does not work when using remote/ssh as destination
+-d --days        How many days to keep snapshots:
+                 --days 45  (Keep 45 days of snapshots)
+                 *Does not work when using remote/ssh as destination
 
--e --exclude        Path of exclude file: --exclude /home/user/rsyncsnap.exclude
+-e --exclude     Path of exclude file: --exclude /home/user/rsyncsnap.exclude
 -------------------------------------
--l --logfile        Directory and filename location to create/append log file:
-                    --logfile /home/user/rsyncsnap.log
+-l --logfile     Directory and filename location to create/append log file:
+                 --logfile /home/user/rsyncsnap.log
 
--m --mail --email   Send email using mail command:
-                    --mail user@domain.com // --mail root
+-m --mail        Send email using mail command:
+--email          --mail user@domain.com // --mail root
                   
---syslog            Send status to syslog using logger
+--syslog         Send status to syslog using logger
 -------------------------------------
---rsync-options     Default: ${rsync_options[*]}
-                    Use custom rsync options instead of built-in default.
-                    **Must Use "quotes"
-                    --rsync-options "-avhxRHAWXS --numeric-ids"
+-ro              Default: ${rsync_options[*]}
+--rsync-options  Use custom rsync options instead of built-in default.
+                 **Must Use "quotes"
+                 --rsync-options "-avhxRHAWXS --numeric-ids" (Copy all permissions)
+                 --rsync-options "-rptgoDvhxSR --numeric-ids" (No copy symlinks)
 -------------------------------------
---pull              Perform pull backup from remote server to local destination
-                    Directories must have : <colon> before their names
-                    **Must Use "quotes"
-                    --pull "<remote directories>"
-                    --pull ":/etc/ :/home/ :/usr/local/"
+--pull           Perform pull backup from remote server to local destination
+                 Directories must have : <colon> before their names
+                 Must Use "quote string of arguments"
+                 --pull "<remote directories>"
+                 --pull ":/etc/ :/home/ :/usr/local/"
 
---pull-sudo         Use sudo option with ssh:
-                    **Must Use "quotes"
-                    --rsync-path="sudo user"
+--pull-sudo      Use sudo option with ssh:
+                 **Must Use "quotes"
+                 --rsync-path="sudo user"
 -------------------------------------
--v | --verbose      Display more verbose output like snapshot amount information
---dryrun            Perform rsync using --dry-run to test backup.
---debug             Use set-x bash option when running script.
--V | --version      Version information
--h | --help         Print this usage information.
+-v | --verbose   Display more verbose output like snapshot amount information
+--dryrun         Perform rsync using --dry-run to test backup.
+--debug          Use set-x bash option when running script.
+-V | --version   Version information
+-h | --help      Print this usage information.
 --------------------------------------------------------------------------------
 EXAMPLES:
 
@@ -133,6 +134,7 @@ PULL BACKUP FROM REMOTE SERVER USING SSH:
 - Using include file as source will backup directories listed in file.
 - Can use multiple source directories within "quotes"
   "/home/user /etc /usr/local/bin"
+- Symlink to -current is relative so can move backup directory without issues.
 --------------------------------------------------------------------------------
 NAME OF BACKUP:
 - Backup is named based on include filename or the source directory name
@@ -142,7 +144,6 @@ RESTORE:
 - To restore files from backup, manually copy files from backup date/time
   in destination directory to original or alternate location.
 --------------------------------------------------------------------------------
-
 "
 ```
 
@@ -150,7 +151,7 @@ RESTORE:
 
 ## Examples (Modify to work with your setup)
 
-#### /rsyncsnap.include (Use trailing slashes on directories)
+#### ./rsyncsnap.include
 ```
 /home/
 /root/
@@ -159,7 +160,7 @@ RESTORE:
 /var/www/
 ```
 
-#### /rsyncsnap.exclude (Use trailing slashes on directories)
+#### ./rsyncsnap.exclude
 ```
 */.thumbnails
 */.cache
@@ -260,13 +261,13 @@ Create a new file `/etc/logrotate.d/rsyncsnap` with contents below.  Change /pat
 
 ## Restoring Files
 
-To restore files or directories you will find all backup versions in the destination directory depending on the date/times of the snapshots and find the files you need to restore and then manually copying where they need to be restored to.  Using a program called Ranger helps to make it easier to navigate through all the snapshot directories and can preview the files from there too.  Can do via linux shell, graphic file manager within linux server or Windows desktop computer using VSS "Windows Previous Versions".
+To restore files or directories you will find all backup versions in the destination directory based on the date/times of the snapshots. From there you find the files you need to restore and then manually copying where they need to be restored to.  Can use any program or if on Windows desktop computer using VSS "Microsoft Windows Previous Versions".
 
 ----------------------------------------------------------------------------------
 
 ## Checking and Verifying
 
-Your data is important and you can verify if things are working properly.  If you want to verify that snapshot hardlinks are working and not copies of the file, you can compare the inodes of files within multiple directories in the destination to see if they are the same.  If a file that wasn't modified shares the same inode with another file not modified within the backup then it is a hardlink and written to the file system only once and is working properly.  Directories will not share the same inode like files do, and is working fine so only check files.
+Your data is important and you can verify if things are working properly.  To verify that snapshot hardlinks are working and not copies of the file, you compare the inodes of files within multiple snapshot directories in the destination to see if they are the same.  If a file that wasn't modified shares the same inode with another file not modified within the backup then it is a hardlink and written to the file system only once and is working properly.  Directories will not share the same inode like files do, and is working so only check files.
 
 #### Use these options to check size and hardlinks of backup.
 
