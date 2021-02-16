@@ -175,7 +175,8 @@ perform_rsync() {
 local_softlink_snapshots() {
   # -- Create soft link of current date-time to backup just created
   if ! rm -f "${destination_dir}"/"${current_link}"; then fail "Issues removing old softlink"; fi
-  if ! ln -s "${destination_dir}"/"${backup_base}"@"${datetime}" "${destination}"/"${current_link}"; then fail "Creating softlink to ${destination}/${current_link}"; else msg "Created/updated softlink to latest version backup at ${destination}"; fi
+  if ! ln -s -r "${destination_dir}"/"${backup_base}"@"${datetime}" "${destination}"/"${current_link}"; then
+    fail "Creating softlink to ${destination}/${current_link}"; else msg "Created/updated softlink to latest version backup at ${destination}"; fi
   # --- Keep snapshots by (amount)
   if [[ -n "${snapshot_amount}" ]]; then
     # Get amount of backups in destination directory
@@ -202,7 +203,7 @@ ssh_softlink_snapshots() {
 ssh "${ssh_options[@]}" "${ssh_server}" "
   # -- Create/Update Softlink
   if ! rm -f ${destination_dir}/${current_link}; then printf '%s \n' '[ SSH- ] Issues removing old softlink'; fi
-  if ! ln -s ${destination_dir}/${backup_base}@${datetime} ${destination_dir}/${current_link}; then printf '%s \n' '[ SSH- ] Failed creating softlink to ${destination}/${current_link}'; else printf '%s \n' '[ SSH- ] Created/updated softlink to latest version backup at ${destination}'; fi
+  if ! ln -s -r ${destination_dir}/${backup_base}@${datetime} ${destination_dir}/${current_link}; then printf '%s \n' '[ SSH- ] Failed creating softlink to ${destination}/${current_link}'; else printf '%s \n' '[ SSH- ] Created/updated softlink to latest version backup at ${destination}'; fi
   # -- Remove old snapshots (AMOUNT)
   if [[ ${snapshot_amount} ]]; then
     # Get amount of backups in destination directory
@@ -244,7 +245,7 @@ command_options() {
     -d|--days) snapshot_amount_days="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     --rsync-options) rsync_options=( "$2") ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     --pull-sudo) sudo_user="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; sudo_command=(--rsync-path="sudo ${sudo_user}"); shift ;;
-    --pull) pull_sources=( "$2") ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; backup_type="PULL"; use_ssh="N"; shift ;;
+    --pull) pull_sources=($2) ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; backup_type="PULL"; use_ssh="N"; shift ;; # Do not quote pull_sources=($2)
     -l|--logfile) logfile="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     -m|--mail|--email) mail_address="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     --syslog) sendsyslog="Y" ;;
