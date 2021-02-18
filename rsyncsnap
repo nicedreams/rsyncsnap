@@ -39,8 +39,8 @@ current_link="${backup_base}-current" # Softlink name (add/remove . to beginning
 # ║ FUNCTIONS                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
 msg()  { printf "%s[ INFO ] ${*}\n" 2>&1 | tee -a "${logtmp}" ; }
-warn() { printf "%s[ WARN ] ${*}\n" 2>&1 | tee -a "${logtmp}" ; }
-fail() { printf "%s[ FAIL ] ${*} - Exiting!\n" 2>&1 | tee -a "${logtmp}"; log_subject="ERROR backup off ${backup_base} to ${destination}"; cleanup; }
+warn() { printf "%s[ WARN ] ${*}\n" 2>&1 | tee -a "${logtmp}"; log_subject="WARN during backup of ${backup_base} to ${destination}" ; }
+fail() { printf "%s[ FAIL ] ${*} - Exiting!\n" 2>&1 | tee -a "${logtmp}"; log_subject="ERROR during backup of ${backup_base} to ${destination}"; cleanup; }
 
 usage() {
 printf '%s \n' "-------------------------------------------------------------------------------
@@ -172,7 +172,7 @@ perform_rsync() {
     fail "version backup during (rsync code: ${return_code}) for ${backup_base} to ${destination}"
   elif [[ "${return_code}" == "0" ]]; then
     msg "Completed rsync version backup off ${backup_base} to ${destination}"
-    log_subject="COMPLETED backup off ${backup_base} to ${destination}"
+    log_subject="["${HOSTNAME}"] COMPLETED backup off ${backup_base} to ${destination}"
   fi
 }
 
@@ -270,17 +270,17 @@ main() {
   trap cleanup 2 SIGHUP SIGINT SIGQUIT SIGABRT SIGTERM
   # -------------------------------------------------------------
   start=$(date +%s)
-  msg "(START) rsyncsnap hardlink version backup"
+  msg "========================================================================"
+  msg "(START) $(date) - rsyncsnap hardlink version backup"
   if [[ "${backup_type}" == "PULL" ]]; then msg "[PULLING] ${source[*]} to ${destination}"; else msg "[PUSHING] ${source[*]} to ${destination}"; fi
   msg "------------------------------------------------------------------------"
   perform_rsync
   if [[ "${use_ssh}" == "Y" ]] || [[ "${destination_dir}" = *:* ]]; then ssh_softlink_snapshots; else local_softlink_snapshots; fi
   finish=$(date +%s)
-  msg "------------------------------------------------------------------------"
   msg "[ Total Time :] $(( (${finish}-${start}) / 60 )) minutes, $(( (${finish}-${start}) % 60 )) seconds"
-  msg "(END) rsyncsnap hardlink version backup"
-  if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject[0]}" "${log_subject[2]}" > /dev/null 2>&1; then warn "Issue sending message to syslog via logger"; fi; fi
-  if [[ "${mail_address}" ]]; then if ! mail -s "${log_subject[*]}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to: ${mail_address}"; fi; fi
+  msg "(END) $(date) - rsyncsnap hardlink version backup"
+  if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject}" > /dev/null 2>&1; then warn "Issue sending message to syslog via logger"; fi; fi
+  if [[ "${mail_address}" ]]; then if ! mail -s "["${HOSTNAME}"] ${log_subject}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
   cleanup
 }
 
