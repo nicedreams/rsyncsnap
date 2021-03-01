@@ -172,7 +172,7 @@ perform_rsync() {
     fail "version backup during (rsync code: ${return_code}) for ${backup_base} to ${destination}"
   elif [[ "${return_code}" == "0" ]]; then
     msg "Completed rsync version backup off ${backup_base} to ${destination}"
-    log_subject="["${HOSTNAME}"] COMPLETED backup off ${backup_base} to ${destination}"
+    log_subject="[${HOSTNAME}] COMPLETED backup off ${backup_base} to ${destination}"
   fi
 }
 
@@ -280,7 +280,7 @@ main() {
   msg "[ Total Time :] $(( (${finish}-${start}) / 60 )) minutes, $(( (${finish}-${start}) % 60 )) seconds"
   msg "(END) $(date) - rsyncsnap hardlink version backup"
   if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject}" > /dev/null 2>&1; then warn "Issue sending message to syslog via logger"; fi; fi
-  if [[ "${mail_address}" ]]; then if ! mail -s "["${HOSTNAME}"] ${log_subject}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
+  if [[ "${mail_address}" ]]; then if ! mail -s "${log_subject}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
   cleanup
 }
 
