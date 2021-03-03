@@ -284,7 +284,7 @@ main() {
   msg "[ Total Time :] $(( (${finish}-${start}) / 60 )) minutes, $(( (${finish}-${start}) % 60 )) seconds"
   msg "(END) $(date) - rsyncsnap hardlink version backup"
   if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject}" > /dev/null 2>&1; then warn "Issue sending message to syslog via logger"; fi; fi
-  if [[ "${mail_address}" ]]; then if ! mail -s "${log_subject} on ${HOSTNAME}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
+  if [[ "${mail_address}" ]]; then if ! mail -s "[rsyncsnap] ${log_subject} on ${HOSTNAME}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
   cleanup
 }
 
