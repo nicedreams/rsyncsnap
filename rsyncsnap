@@ -172,7 +172,7 @@ perform_rsync() {
     fail "version backup during (rsync code: ${return_code}) for ${backup_base} to ${destination}"
   elif [[ "${return_code}" == "0" ]]; then
     msg "Completed rsync version backup off ${backup_base} to ${destination}"
-    log_subject="COMPLETED backup off ${backup_base} to ${destination}"
+    log_subject="COMPLETED ${backup_base} to ${destination}"
   fi
 }
 
@@ -183,6 +183,8 @@ local_softlink_snapshots() {
     fail "Creating softlink to ${destination}/${current_link}"; else msg "Created/updated softlink to latest version backup at ${destination}"; fi
   # --- Keep snapshots by (amount)
   if [[ -n "${snapshot_amount}" ]]; then
+    local snapshot
+    snapshot=${snapshot_amount}
     # Get amount of backups in destination directory
     num_existing="$(find "${destination_dir}"/"${backup_base}"@* -maxdepth 0 -type d | wc -l)"
     # Remove snapshots amount if over snapshot limit
@@ -194,12 +196,14 @@ local_softlink_snapshots() {
   fi
   # --- Keep snapshots by (days)
   if [[ -n "${snapshot_amount_days}" ]]; then
+    local snapshot
+    snapshot=${snapshot_amount_days}
     # List snapshot keep days if hit limit
     if ! find "${destination_dir}"/"${backup_base}"@* -maxdepth 0 -type d -mtime +"${snapshot_amount_days}" -exec rm -rf {} \;
       then warn "Removing older snapshots -days- from ${destination}"; else msg "Removed old snapshots by days - Limit: ${snapshot_amount_days}"; fi
   fi
   # List Snapshots
-  if [[ "${verbose}" == "Y" ]]; then msg "Listing backup snapshots at ${destination}"; fi
+  if [[ "${verbose}" == "Y" ]]; then msg "Listing backup snapshots at ${destination} [Limit: ${snapshot}]"; fi
   if [[ "${verbose}" == "Y" ]]; then printf '%s \n' "$(ls -d1 "${destination_dir}"/"${backup_base}"@*)" 2>&1 | tee -a "${logtmp}"; fi
 }
 
@@ -220,7 +224,7 @@ ssh "${ssh_options[@]}" "${ssh_server}" "
     fi
   fi
   # -- List Snapshots
-  if [[ ${verbose} == Y ]]; then printf '%s \n' '[ SSH- ] Listing backup snapshots at ${destination}'; fi
+  if [[ ${verbose} == Y ]]; then printf '%s \n' '[ SSH- ] Listing backup snapshots at ${destination} [Limit: ${snapshot_amount}]'; fi
   if [[ ${verbose} == Y ]]; then printf '%s \n' \$(find ${destination_dir}/${backup_base}@* -maxdepth 0 -type d) 2>&1 | tee -a ${logtmp}; fi
 "
 }
