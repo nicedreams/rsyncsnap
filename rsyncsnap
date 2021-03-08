@@ -3,7 +3,7 @@
 # ║ rsyncsnap -- Rsync Incremental Backups Using Bash                          ║
 # ║ https://github.com/nicedreams/rsyncsnap                                    ║
 # ║ ------------------------------------------------------------------------   ║
-# ║ Copyright (C) 2020  Kenneth Bernier <kbernier@gmail.com>                   ║
+# ║ Copyright (C) 2021  Kenneth Bernier <kbernier@gmail.com>                   ║
 # ║                                                                            ║
 # ║ This program is free software: you can redistribute it and/or modify       ║
 # ║ it under the terms of the GNU General Public License as published by       ║
@@ -22,17 +22,25 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-version="1.0.2021-03-01-beta (https://github.com/nicedreams/rsyncsnap)"
+version="1.0.2021-03-08-beta (https://github.com/nicedreams/rsyncsnap)"
 program_title="rsyncsnap"
 rsync_options=(-arvhxSR --numeric-ids)                           # Rsync command options (-avhxRHAWXS)
 ssh_options=(-oStrictHostKeyChecking=no -oLogLevel=QUIET -n -q)  # SSH command options (Remove -q to have SSH verbose output.)
 datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"                  # datetime formatting
 logtmp="$(mktemp)" || logtmp="/tmp/rsyncsnap-${RANDOM}.tmp"      # Temp log location
-source="${1%/}"                                                  # Source location removing trailing slash variable
-destination="${2%/}"                                             # Destination directory to store backups removing trailing slash from variable)
-if [[ "${destination}" = *:* ]]; then use_ssh="Y"; ssh_server="${destination%:*}"; destination_dir="${destination#*:}"; else destination_dir="${destination}"; fi # Set variables if (ssh) colon detected in destination
-backup_base="${source[0]##*/}"    # Remove full path
-backup_base="${backup_base%.*}"   # Remove extention
+source="${1%/}"                                                  # Source location, removing trailing slash
+destination="${2%/}"                                             # Destination directory to store backups, removing trailing slash)
+# Set variables if (ssh) colon detected in destination
+if [[ "${destination}" = *:* ]]
+  then
+    use_ssh="Y"
+    ssh_server="${destination%:*}"
+    destination_dir="${destination#*:}"
+  else
+    destination_dir="${destination}"
+fi
+backup_base="${source[0]##*/}"        # Remove full path
+backup_base="${backup_base%.*}"       # Remove extention
 current_link="${backup_base}-current" # Softlink name (add/remove . to beginning if want link hidden or visable in backup)
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -40,7 +48,7 @@ current_link="${backup_base}-current" # Softlink name (add/remove . to beginning
 # ╚════════════════════════════════════════════════════════════════════════════╝
 msg()  { printf "%s[ INFO ] ${*}\n" 2>&1 | tee -a "${logtmp}" ; }
 warn() { printf "%s[ WARN ] ${*}\n" 2>&1 | tee -a "${logtmp}"; log_subject="WARN during backup of ${backup_base} to ${destination}" ; }
-fail() { printf "%s[ FAIL ] ${*} - Exiting!\n" 2>&1 | tee -a "${logtmp}"; log_subject="ERROR during backup of ${backup_base} to ${destination}"; cleanup; }
+fail() { printf "%s[ FAIL ] ${*} - Exiting!\n" 2>&1 | tee -a "${logtmp}"; log_subject="FAIL during backup of ${backup_base} to ${destination}"; cleanup; }
 
 usage() {
 printf '%s \n' "-------------------------------------------------------------------------------
@@ -162,8 +170,9 @@ perform_rsync() {
   #msg "Performing rsync version backup to ${destination}"
   msg " ---- ---- ---- ---- ---- Begin Rsync Log ---- ---- ---- ---- ----"
   "${rsync_cmd[@]}"
-  msg " ---- ---- ---- ---- ---- End Rsync Log ---- ---- ---- ---- ----"
+  #if ! "${rsync_cmd[@]}"; then return_code="$?"; warn "during version backup (rsync code: ${return_code}) for ${backup_base} to ${destination}"; fi
   return_code="$?"
+  msg " ---- ---- ---- ---- ---- End Rsync Log ---- ---- ---- ---- ----"
   if [[ "${return_code}" == "23" ]]; then
     warn "(rsync code: ${return_code}) partial rsync transfer due to error for ${backup_base} to ${destination}"
   elif [[ "${return_code}" == "11" ]]; then
@@ -239,6 +248,8 @@ rsync_dryrun() {
 
 cleanup() {
   if [[ "${logfile}" ]]; then printf "\n\n" >> "${logfile}"; if ! cat "${logtmp}" >> "${logfile}"; then warn "Issues creating/updating logfile"; fi; fi
+  if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject}" > /dev/null 2>&1; then warn "Issue sending message to syslog via logger"; fi; fi
+  if [[ "${mail_address}" ]]; then if ! mail -s "[rsyncsnap] ${log_subject} on ${HOSTNAME}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
   rm -f "${logtmp}"
   exit 1
 }
@@ -283,8 +294,6 @@ main() {
   finish=$(date +%s)
   msg "[ Total Time :] $(( (${finish}-${start}) / 60 )) minutes, $(( (${finish}-${start}) % 60 )) seconds"
   msg "(END) $(date) - rsyncsnap hardlink version backup"
-  if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject}" > /dev/null 2>&1; then warn "Issue sending message to syslog via logger"; fi; fi
-  if [[ "${mail_address}" ]]; then if ! mail -s "[rsyncsnap] ${log_subject} on ${HOSTNAME}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
   cleanup
 }
 
