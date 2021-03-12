@@ -22,10 +22,10 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-version="1.0.2021-03-08-beta (https://github.com/nicedreams/rsyncsnap)"
+version="1.0-2021-03-12-beta (https://github.com/nicedreams/rsyncsnap)"
 program_title="rsyncsnap"
-rsync_options=(-arvhxSR --numeric-ids)                           # Rsync command options (-avhxRHAWXS)
-ssh_options=(-oStrictHostKeyChecking=no -oLogLevel=QUIET -n -q)  # SSH command options (Remove -q to have SSH verbose output.)
+rsync_options=(-arhxSR --numeric-ids)                            # Rsync command options (-avhxRHAWXS) / Removed -v to can be part of verbose option
+ssh_options=(-oStrictHostKeyChecking=no -oLogLevel=QUIET -n -q)  # SSH command options (Remove -q to have SSH verbose output)
 datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"                  # datetime formatting
 logtmp="$(mktemp)" || logtmp="/tmp/rsyncsnap-${RANDOM}.tmp"      # Temp log location
 source="${1%/}"                                                  # Source location, removing trailing slash
@@ -98,7 +98,8 @@ OPTIONS:
                  **Must Use \"quotes\"
                  --rsync-path=\"sudo user\"
 -------------------------------------
--v | --verbose   Display more verbose output like snapshot amount information
+-v  | --verbose  Display rsync verbose output
+-vv | --verbose2 Display rsync verbose output and list snapshots at end of backup
 --dryrun         Perform rsync using --dry-run to test backup.
 --debug          Use set-x bash option when running script.
 -V | --version   Version information
@@ -112,6 +113,7 @@ EXAMPLES:
             --days 45 \\
             --logfile /var/log/rsyncsnap.log \\
             --mail user@domain \\
+            --verbose \\
             --syslog
 
   rsyncsnap /home/user /mnt/backups
@@ -212,8 +214,8 @@ local_softlink_snapshots() {
       then warn "Removing older snapshots -days- from ${destination}"; else msg "Removed old snapshots by days - Limit: ${snapshot_amount_days}"; fi
   fi
   # List Snapshots
-  if [[ "${verbose}" == "Y" ]]; then msg "Listing backup snapshots at ${destination} [Limit: ${snapshot}]"; fi
-  if [[ "${verbose}" == "Y" ]]; then printf '%s \n' "$(ls -d1 "${destination_dir}"/"${backup_base}"@*)" 2>&1 | tee -a "${logtmp}"; fi
+  if [[ "${verbose2}" == "Y" ]]; then msg "Listing backup snapshots at ${destination} [Limit: ${snapshot}]"; fi
+  if [[ "${verbose2}" == "Y" ]]; then printf '%s \n' "$(ls -d1 "${destination_dir}"/"${backup_base}"@*)" 2>&1 | tee -a "${logtmp}"; fi
 }
 
 ssh_softlink_snapshots() {
@@ -268,7 +270,8 @@ command_options() {
     -l|--logfile) logfile="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     -m|--mail|--email) mail_address="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
     --syslog) sendsyslog="Y" ;;
-    -v|--verbose) verbose="Y" ;;
+    -v|--verbose) rsync_options+=( -v) ;;
+    -vv|--verbose2) verbose2="Y" ;;
     --test|--dry-run) rsync_dryrun ;;
     --debug) set -x ;;
     -h|--help) usage; exit 0 ;;
