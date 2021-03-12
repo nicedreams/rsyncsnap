@@ -19,7 +19,7 @@ Bash script that uses rsync to create incremental hard link snapshots of directo
 ----------------------------------------------------------------------------------
 
 ## Warnings
-- Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup when creating hardlinks.
+- Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup when creating hardlinks.  Without this softlink it will do a full backup instead of versioned and will create new softlink based from that.
 - Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed.
 - Making any modifications to permissions, directories or files on destination directories after a snapshot backup was performed can cause issues during next snapshot run.  It is best to not change anything at the destination and consider it **read-only**.
 - Be careful when using `--snapshots` and `--days` together, as `--days` may remove more snapshots than planned if not planned properly.  `--days` option will not work with remote ssh destinations.
@@ -32,9 +32,9 @@ cp rsyncsnap /usr/local/bin/rsyncsnap
 chmod +x /usr/local/bin/rsyncsnap
 ```
 
-Copy `rsyncsnap.include` and `rsyncsnap.exclude` files to `/root` or another directory of your choosing or create your own includes file.
+Copy `rsyncsnap.include` and `rsyncsnap.exclude` files to `/root` or another directory of your choosing or create your own include/exclude file if needed.
 
-Create `rsyncsnap.include` and `rsyncsnap.exclude files`.  Use the example files to help you with your own includes and excludes.  Follows normal rsync patterns.  Excludes creation is optional if not needed.
+Use the example files to help you with your own include and exclude.  Follows normal rsync patterns.
 ```
 vi /root/rsyncsnap.include
 vi /root/rsyncsnap.exclude
@@ -88,19 +88,19 @@ OPTIONS:
 -------------------------------------
 -ro              Default: ${rsync_options[*]}
 --rsync-options  Use custom rsync options instead of built-in default.
-                 **Must Use "quotes"
-                 --rsync-options "-avhxRHAWXS --numeric-ids" (Copy all permissions)
-                 --rsync-options "-rptgoDvhxSR --numeric-ids" (No copy symlinks)
+                 **Must Use \"quotes\"
+                 --rsync-options \"-avhxRHAWXS --numeric-ids\" (Copy all permissions)
+                 --rsync-options \"-rptgoDvhxSR --numeric-ids\" (No copy symlinks)
 -------------------------------------
 --pull           Perform pull backup from remote server to local destination
                  Directories must have : <colon> before their names
-                 Must Use "quote string of arguments"
-                 --pull "<remote directories>"
-                 --pull ":/etc/ :/home/ :/usr/local/"
+                 Must Use \"quote string of arguments\"
+                 --pull \"<remote directories>\"
+                 --pull \":/etc/ :/home/ :/usr/local/\"
 
 --pull-sudo      Use sudo option with ssh:
-                 **Must Use "quotes"
-                 --rsync-path="sudo user"
+                 **Must Use \"quotes\"
+                 --rsync-path=\"sudo user\"
 -------------------------------------
 -v | --verbose   Display more verbose output like snapshot amount information
 --dryrun         Perform rsync using --dry-run to test backup.
@@ -124,16 +124,16 @@ EXAMPLES:
 PULL BACKUP FROM REMOTE SERVER USING SSH:
 
   rsyncsnap <remote_user@server_to_backup> <local_destination_to_store_backups>
-            --pull "<:directories :on :remote: :server>"
+            --pull \"<:directories :on :remote: :server>\"
   
   rsyncsnap user@server /srv/backups/
-            --pull ":/etc/ :/home/ :/usr/local/" \
+            --pull \":/etc/ :/home/ :/usr/local/\" \
             --pull-sudo user
 --------------------------------------------------------------------------------
 - Using single directory as source will backup single directory.
 - Using include file as source will backup directories listed in file.
-- Can use multiple source directories within "quotes"
-  "/home/user /etc /usr/local/bin"
+- Can use multiple source directories within \"quotes\"
+  \"/home/user /etc /usr/local/bin\"
 - Symlink to -current is relative so can move backup directory without issues.
 - Best to use server configured in ~/.ssh/config with password-less ssh keys
   when using backups with ssh.
@@ -169,9 +169,9 @@ RESTORE:
 */cache
 */Trash
 */tmp
+/.gvfs
 */.snapraid.content*
 /var/www/example.net/
-/.gvfs
 ```
 
 #### Samba /etc/samba/smb.conf for Windows Previous Versions exposure.
