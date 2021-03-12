@@ -30,6 +30,7 @@ datetime="$(printf '%(%Y-%m-%d_%H.%M.%S)T' -1)"                  # datetime form
 logtmp="$(mktemp)" || logtmp="/tmp/rsyncsnap-${RANDOM}.tmp"      # Temp log location
 source="${1%/}"                                                  # Source location, removing trailing slash
 destination="${2%/}"                                             # Destination directory to store backups, removing trailing slash)
+exit_code="0"                                                    # Set default exit code for success unless changed by fail function
 # Set variables if (ssh) colon detected in destination
 if [[ "${destination}" = *:* ]]
   then
@@ -48,7 +49,7 @@ current_link="${backup_base}-current" # Softlink name (add/remove . to beginning
 # ╚════════════════════════════════════════════════════════════════════════════╝
 msg()  { printf "%s[ INFO ] ${*}\n" 2>&1 | tee -a "${logtmp}" ; }
 warn() { printf "%s[ WARN ] ${*}\n" 2>&1 | tee -a "${logtmp}"; log_subject="WARN during backup of ${backup_base} to ${destination}" ; }
-fail() { printf "%s[ FAIL ] ${*} - Exiting!\n" 2>&1 | tee -a "${logtmp}"; log_subject="FAIL during backup of ${backup_base} to ${destination}"; cleanup; }
+fail() { printf "%s[ FAIL ] ${*} - Exiting!\n" 2>&1 | tee -a "${logtmp}"; log_subject="FAIL during backup of ${backup_base} to ${destination}"; exit_code="1"; cleanup; }
 
 usage() {
 printf '%s \n' "-------------------------------------------------------------------------------
@@ -149,8 +150,8 @@ RESTORE:
 
 prechecks_exit() {
   if [[ $(command -v rsync &> /dev/null) ]]; then printf '%s \n' "rsync program not found"; fi
-  if [[ ! "${source}" ]]; then printf '%s \n' "Source or include file list not entered!"; exit 1; fi
-  if [[ ! "${destination_dir}" ]]; then printf '%s \n' "Backup destination not entered!"; exit 1; fi
+  if [[ ! "${source}" ]]; then printf '%s \n' "Source or include file list not entered!"; exit_code="1"; fi
+  if [[ ! "${destination_dir}" ]]; then printf '%s \n' "Backup destination not entered!"; exit_code="1"; fi
 }
 
 perform_rsync() {
@@ -245,7 +246,7 @@ rsync_dryrun() {
   rsync_options+=( --dry-run)
   perform_rsync
   printf '%s\n\n' "[ DRYRUN ] Finished performing dry-run of rsync for testing - Actual backup was NOT performed"
-  exit 0
+  exit "${exit_code}"
 }
 
 cleanup() {
@@ -253,7 +254,7 @@ cleanup() {
   if [[ "${sendsyslog}" == "Y" ]]; then if ! logger -s -t rsyncsnap "${log_subject}" > /dev/null 2>&1; then warn "Issue sending message to syslog via logger"; fi; fi
   if [[ "${mail_address}" ]]; then if ! mail -s "[rsyncsnap] ${log_subject} on ${HOSTNAME}" "${mail_address}" < "${logtmp}"; then warn "Issue sending mail to ${mail_address}"; fi; fi
   rm -f "${logtmp}"
-  exit 0
+  exit "${exit_code}"
 }
 
 command_options() {
@@ -261,22 +262,22 @@ command_options() {
   while [[ "$#" -gt 0 ]]; do  
   option="$1"
   case "$option" in
-    -e|--exclude|--excludes) exclude_file="${2%/}" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
-    -s|--snapshot|--snapshots) if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; snapshot_amount="$2"; shift ;;
-    -d|--days) snapshot_amount_days="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
-    -ro|--rsync-options) rsync_options=($2) ; if [[ ! "${2}" ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
-    --pull-sudo) sudo_user="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; sudo_command=(--rsync-path="sudo ${sudo_user}"); shift ;;
-    --pull) pull_sources=($2) ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; backup_type="PULL"; use_ssh="N"; shift ;; # Do not quote pull_sources=($2)
-    -l|--logfile) logfile="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
-    -m|--mail|--email) mail_address="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit 1; fi; shift ;;
+    -e|--exclude|--excludes) exclude_file="${2%/}" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; shift ;;
+    -s|--snapshot|--snapshots) if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; snapshot_amount="$2"; shift ;;
+    -d|--days) snapshot_amount_days="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; shift ;;
+    -ro|--rsync-options) rsync_options=($2) ; if [[ ! "${2}" ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; shift ;;
+    --pull-sudo) sudo_user="$2" ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; sudo_command=(--rsync-path="sudo ${sudo_user}"); shift ;;
+    --pull) pull_sources=($2) ; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; backup_type="PULL"; use_ssh="N"; shift ;; # Do not quote pull_sources=($2)
+    -l|--logfile) logfile="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; shift ;;
+    -m|--mail|--email) mail_address="$2"; if [[ ! "${2}" ]] || [[ "${2}" == -* ]]; then printf '%s \n' "Option argument not entered"; exit_code="1"; fi; shift ;;
     --syslog) sendsyslog="Y" ;;
     -v|--verbose) rsync_options+=( -v) ;;
     -vv|--verbose2) verbose2="Y" ;;
     --test|--dry-run) rsync_dryrun ;;
     --debug) set -x ;;
-    -h|--help) usage; exit 0 ;;
-    -V|--version) printf "%srsyncsnap -- v${version}\n"; exit 0 ;;
-    -?*) printf '%s \n' "Not a valid option: ${1}  [$0 --help]"; exit 1 ;;
+    -h|--help) usage; exit_code="0" ;;
+    -V|--version) printf "%srsyncsnap -- v${version}\n"; exit_code="0" ;;
+    -?*) printf '%s \n' "Not a valid option: ${1}  [$0 --help]"; exit_code="1" ;;
   esac
   shift
   done
