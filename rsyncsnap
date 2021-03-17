@@ -201,6 +201,7 @@ local_softlink_snapshots() {
     num_existing="$(find "${destination_dir}"/"${backup_base}"@* -maxdepth 0 -type d | wc -l)"
     # Remove snapshots amount if over snapshot limit
     if [[ "${num_existing}" -gt "${snapshot_amount}" ]]; then
+      # This way we get a negative number for head with find | ie: head -n -28
       ((over="${num_existing}"-"${snapshot_amount}"))
       if ! find "${destination_dir}"/"${backup_base}"@* -maxdepth 0 -type d | head -n "${over}" | while read -r s; do rm -rf "${s}"; done
         then warn "Removing older snapshots -amount- from ${destination}"; else msg "Removed old snapshots by amount - Limit: ${snapshot_amount}"; fi
