@@ -22,7 +22,7 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║ VARIABLES                                                                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
-version="1.0-2021-03-12-beta (https://github.com/nicedreams/rsyncsnap)"
+version="1.0 (https://github.com/nicedreams/rsyncsnap)"
 program_title="rsyncsnap"
 rsync_options=(-arhxSR --numeric-ids)                            # Rsync command options (-avhxRHAWXS) / Removed -v to can be part of verbose option
 ssh_options=(-oStrictHostKeyChecking=no -oLogLevel=QUIET -n -q)  # SSH command options (Remove -q to have SSH verbose output)

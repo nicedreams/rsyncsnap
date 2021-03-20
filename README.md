@@ -10,7 +10,7 @@ Bash script that uses rsync to create incremental hard link snapshots of directo
 - Can perform push or pull backups.
 - Can create and store backup snapshots on local machine or remote server using ssh.
 - Snapshots are Samba `vfs_shadow_copy2` compatible with Microsoft Windows Previous Versions.
-- Uses updated relative soft link to most current backup within backup directory to keep track of previous snapshot.
+- Uses updated relative symlink to most current backup within backup directory to keep track of previous snapshot.
 - Using single directory as source will backup single directory.
 - Using include file as source will backup multiple directories listed in file.
 - The use of .includes file is for adding single or multiple sources to backup.  Can use any name and file and extension.
@@ -18,11 +18,17 @@ Bash script that uses rsync to create incremental hard link snapshots of directo
 
 ----------------------------------------------------------------------------------
 
+## v1.0 Release
+
+Lots of changes.  Removed a few hundred lines of code.  Removed, added and renamed options.  Combined and optimized everything else.  Check your setup before upgrading to v1.0+ since some options don't exist or are renamed from previous versions.  As always no matter what backup program or script you use, verify your backups are proper.  Don't blindly trust technology with your data.
+
+----------------------------------------------------------------------------------
+
 ## Warnings
-- Do not delete the soft link to rsyncsnap-current directory!  The soft link to rsyncsnap-current directory is most important and how rsyncsnap keeps track of previous backup when creating hardlinks.  Without this softlink it will do a full backup instead of versioned and will create new softlink based from that.
+- Do not delete the symlink to rsyncsnap-current!  The symlink to rsyncsnap-current is most important and how rsyncsnap keeps track of previous backup when creating hardlinks.  Without this symlink it will do a full backup instead of versioned and will create new symlink based from that.
 - Be careful with backup snapshot number.  If snapshot amount is set to a low number like 1 then all snapshots will be removed.
 - Making any modifications to permissions, directories or files on destination directories after a snapshot backup was performed can cause issues during next snapshot run.  It is best to not change anything at the destination and consider it **read-only**.
-- Be careful when using `--snapshots` and `--days` together, as `--days` may remove more snapshots than planned if not planned properly.  `--days` option will not work with remote ssh destinations.
+- Be careful when using `--snapshots` and `--days` together, as `--days` may remove more snapshots than wanting if not planned properly.  `--days` option will not work with remote ssh destinations.
 
 ## Installation
 
@@ -56,6 +62,7 @@ ls
 ## Usage
 
 ```
+-------------------------------------------------------------------------------
 rsyncsnap
 Uses rsync to create incremental hard link snapshots of directories.
 
@@ -89,8 +96,8 @@ OPTIONS:
 -ro              Default: ${rsync_options[*]}
 --rsync-options  Use custom rsync options instead of built-in default.
                  **Must Use \"quotes\"
-                 --rsync-options \"-avhxRHAWXS --numeric-ids\" (Copy all permissions)
-                 --rsync-options \"-rptgoDvhxSR --numeric-ids\" (No copy symlinks)
+                 --rsync-options \"-ahxRHAWXS --numeric-ids\" (Copy all permissions)
+                 --rsync-options \"-rptgoDhxSR --numeric-ids\" (No copy symlinks)
 -------------------------------------
 --pull           Perform pull backup from remote server to local destination
                  Directories must have : <colon> before their names
@@ -102,7 +109,8 @@ OPTIONS:
                  **Must Use \"quotes\"
                  --rsync-path=\"sudo user\"
 -------------------------------------
--v | --verbose   Display more verbose output like snapshot amount information
+-v  | --verbose  Display rsync verbose output
+-vv | --verbose2 Display rsync verbose output and list snapshots at end of backup
 --dryrun         Perform rsync using --dry-run to test backup.
 --debug          Use set-x bash option when running script.
 -V | --version   Version information
@@ -110,12 +118,13 @@ OPTIONS:
 --------------------------------------------------------------------------------
 EXAMPLES:
 
-  rsyncsnap /root/rsyncsnap.include /mnt/backups \
-            --exclude /root/rsyncsnap.exclude \
-            --snapshots 30 \
-            --days 45 \
-            --logfile /var/log/rsyncsnap.log \
-            --mail user@domain \
+  rsyncsnap /root/rsyncsnap.include /mnt/backups \\
+            --exclude /root/rsyncsnap.exclude \\
+            --snapshots 30 \\
+            --days 45 \\
+            --logfile /var/log/rsyncsnap.log \\
+            --mail user@domain \\
+            --verbose \\
             --syslog
 
   rsyncsnap /home/user /mnt/backups
@@ -127,7 +136,7 @@ PULL BACKUP FROM REMOTE SERVER USING SSH:
             --pull \"<:directories :on :remote: :server>\"
   
   rsyncsnap user@server /srv/backups/
-            --pull \":/etc/ :/home/ :/usr/local/\" \
+            --pull \":/etc/ :/home/ :/usr/local/\" \\
             --pull-sudo user
 --------------------------------------------------------------------------------
 - Using single directory as source will backup single directory.
@@ -190,7 +199,7 @@ RESTORE:
   shadow:localtime = yes
 ```
 
-#### Set systemd timer to run once a day for daily snapshots
+#### systemd timer to run once a day for daily snapshots
 
 /etc/systemd/system/rsyncsnap.timer
 
@@ -210,15 +219,11 @@ WantedBy=timers.target
 
 ```
 [Unit]
-Description=Run rsyncsnap hard link backup script
+Description=rsyncsnap hard link backup script
 
 [Service]
 Type=simple
-User=username
-ExecStart=/usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap --exclude /root/rsyncsnap.exclude --snapshots 30 --logfile /var/log/rsyncsnap.log --mail root
-
-[Install]
-WantedBy=multi-user.target
+ExecStart=/usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap --exclude /root/rsyncsnap.exclude --snapshots 30 --logfile /var/log/rsyncsnap.log
 ```
 
 ```
@@ -227,19 +232,18 @@ systemctl start rsyncsnap.timer && systemctl enable rsyncsnap.timer
 systemctl status rsyncsnap.timer
 systemctl list-timers
 
-journalctl -u rsyncsnap.service  # view the logs
-journalctl -f -u rsyncsnap.service  # tail the logs
+journalctl -u rsyncsnap.service     # view the logs
 ```
 
-#### Set cron job to run once a day for daily snapshots
+#### cron job
 
 crontab -e
 
 ```
 #00 00 * * * /usr/local/bin/rsyncsnap <include_file> <destination> <snapshots> <options>
  00 02 * * * /usr/local/bin/rsyncsnap /home/user /mnt/ext-backups/rsyncsnap --days 30 --mail user
- 00 03 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap --exclude /root/rsyncsnap.exclude --snapshots 30 --logfile /var/log/rsyncsnap.log --mail root
- 00 04 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include ssh-server:/home/backups/rsyncsnap --exclude /root/rsyncsnap.exclude --snapshots 15 --logfile /var/log/rsyncsnap.log --mail user@domain
+ 00 04 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include /mnt/ext-backups/rsyncsnap --exclude /root/rsyncsnap.exclude --snapshots 30 --logfile /var/log/rsyncsnap.log --mail root
+ 00 06 * * * /usr/local/bin/rsyncsnap /root/rsyncsnap.include ssh-server:/home/backups/rsyncsnap --exclude /root/rsyncsnap.exclude --snapshots 15 --logfile /var/log/rsyncsnap.log --mail user@domain
 ```
 
 #### Configure logrotate to compress logs once a week
@@ -277,12 +281,12 @@ Get accurate total size of backup using du command
 
 Show size of current backup contents with total:
 ```
-du -sch /mnt/backupdrive/rsyncsnap-current/*
+du -sch /mnt/backupdrive/rsyncsnap/*
 ```
 
 Show size differences of all backups using hard-links with total:
 ```
-du -sch --exclude="/mnt/backupdrive/rsyncsnap-current" /mnt/backupdrive/rsyncsnap-current/*
+du -sch --exclude="/mnt/backupdrive/rsyncsnap-current" /mnt/backupdrive/rsyncsnap/*
 ```
 
 Total of top current backup might be smaller from deleted files within current.  If total of all backups in bottom shows larger size, hard-links might not be working properly.
